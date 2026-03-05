@@ -752,11 +752,6 @@ export default function App() {
                     </div>
                   </motion.div>
                 ) : (
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                ) : (
                   <motion.div
                     key="emergency-response-dispatched-badge"
                     initial={{ opacity: 0, scale: 0.5, x: 50, y: 50 }}
@@ -783,6 +778,9 @@ export default function App() {
                 )}
               </AnimatePresence>
             )}
+
+            {activeView === AppView.NOTIFICATIONS && (
+              <motion.div
                 key="notifications-view"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
