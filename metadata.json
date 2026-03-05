@@ -1,0 +1,5 @@
+{
+  "name": "智康社区 - 智慧健康管理平台",
+  "description": "一个集健康风险热力图、应急响应和无障碍出行于一体的智慧社区健康管理平台。",
+  "requestFramePermissions": ["geolocation"]
+}
