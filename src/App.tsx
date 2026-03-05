@@ -267,7 +267,7 @@ export default function App() {
         </div>
       </header>
 
-      <div className="flex flex-1 overflow-hidden">
+      <main className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
         <aside className="w-72 bg-white border-r border-slate-200 flex flex-col p-4 gap-6 overflow-y-auto">
           <div>
