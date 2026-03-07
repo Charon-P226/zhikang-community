@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { RiskArea, Incident } from '../types';
+import { RiskArea, Incident, BuildingModel, FloorModel, FacilityModel } from '../types';
 
 declare global {
   interface Window {
@@ -19,6 +19,10 @@ interface AMapViewProps {
   isIncidentDismissed: boolean;
   isDispatched: boolean;
   zoom?: number;
+  // 建筑模型数据 (新增)
+  buildingModel?: BuildingModel | null;
+  currentFloor?: number;
+  onFloorChange?: (floor: number) => void;
 }
 
 export default function AMapView({
@@ -32,7 +36,10 @@ export default function AMapView({
   onSelectIncident,
   isIncidentDismissed,
   isDispatched,
-  zoom = 1
+  zoom = 1,
+  buildingModel,
+  currentFloor = 1,
+  onFloorChange
 }: AMapViewProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
@@ -500,6 +507,107 @@ export default function AMapView({
       });
     }
   };
+
+  // 渲染建筑模型 (新增)
+  const renderBuildingModel = (map: any, building: BuildingModel, floorNumber: number) => {
+    if (!map || !building) return;
+
+    // 找到对应楼层
+    const floor = building.floors.find(f => f.floorNumber === floorNumber);
+    if (!floor) return;
+
+    // 1. 绘制建筑轮廓（转为地理坐标）
+    if (floor.outline && floor.outline.length > 0) {
+      const outlineCoords = floor.outline.map(pt => {
+        const lng = building.originCoord[0] + pt.x * building.meterToLng;
+        const lat = building.originCoord[1] + pt.y * building.meterToLat;
+        return [lng, lat];
+      });
+
+      const polygon = new window.AMap.Polygon({
+        path: outlineCoords,
+        fillColor: '#3b82f6',
+        fillOpacity: 0.2,
+        strokeColor: '#2563eb',
+        strokeWeight: 2,
+        strokeOpacity: 0.8,
+      });
+      polygon.setMap(map);
+    }
+
+    // 2. 绘制房间
+    floor.rooms.forEach(room => {
+      if (room.outline && room.outline.length > 0) {
+        const roomCoords = room.outline.map(pt => {
+          const lng = building.originCoord[0] + pt.x * building.meterToLng;
+          const lat = building.originCoord[1] + pt.y * building.meterToLat;
+          return [lng, lat];
+        });
+
+        const roomColor = room.type === 'residential' ? '#10b981' :
+                         room.type === 'commercial' ? '#f59e0b' :
+                         room.type === 'public' ? '#3b82f6' : '#6b7280';
+
+        const polygon = new window.AMap.Polygon({
+          path: roomCoords,
+          fillColor: roomColor,
+          fillOpacity: 0.3,
+          strokeColor: roomColor,
+          strokeWeight: 1,
+          strokeOpacity: 0.6,
+          title: room.name,
+        });
+        polygon.setMap(map);
+
+        // 房间点击事件
+        polygon.on('click', () => {
+          console.log('点击房间:', room.name);
+        });
+      }
+    });
+
+    // 3. 绘制设施点
+    floor.facilities.forEach(facility => {
+      const lng = building.originCoord[0] + facility.position.x * building.meterToLng;
+      const lat = building.originCoord[1] + facility.position.y * building.meterToLat;
+
+      const facilityIcon = getFacilityIcon(facility.type);
+      const markerContent = document.createElement('div');
+      markerContent.innerHTML = `<div style="width:28px;height:28px;background:${facilityIcon.color};border:2px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;cursor:pointer;">${facilityIcon.svg}</div>`;
+
+      const marker = new window.AMap.Marker({
+        position: [lng, lat],
+        content: markerContent,
+        anchor: 'center',
+        offset: new window.AMap.Pixel(0, 0),
+        title: facility.name,
+      });
+      marker.setMap(map);
+    });
+
+    // 自动调整视野
+    map.setFitView();
+  };
+
+  // 获取设施点图标
+  const getFacilityIcon = (type: string) => {
+    const icons: Record<string, { color: string; svg: string }> = {
+      elevator: { color: '#8b5cf6', svg: '<svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 6h-2v2h-2v-2H9v-2h2V7h2v2h2v2z"/></svg>' },
+      stairs: { color: '#f97316', svg: '<svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M3 21h18v-2H3v2zm0-4h18v-2H3v2zm0-4h18v-2H3v2zm0-4h18V7H3v2zm0-6v2h18V3H3z"/></svg>' },
+      entrance: { color: '#10b981', svg: '<svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>' },
+      exit: { color: '#ef4444', svg: '<svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M10.09 15.59L11.5 17l5-5-5-5-1.41 1.41L12.67 11H3v2h9.67l-2.58 2.59zM19 3H5c-1.11 0-2 .9-2 2v4h2V5h14v14H5v-4H3v4c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg>' },
+      wc: { color: '#06b6d4', svg: '<svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-4h2v2h-2v-2zm1-10c-2.21 0-4 1.79-4 4h2c0-1.1.9-2 2-2s2 .9 2 2c0 2-3 1.75-3 5h2c0-2.25 3-2.5 3-5 0-2.21-1.79-4-4-4z"/></svg>' },
+      room: { color: '#64748b', svg: '<svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M12 5.69l5 4.5V18h-2v-6H9v6H7v-7.81l5-4.5M12 3L2 12h3v8h6v-6h2v6h6v-8h3L12 3z"/></svg>' },
+      corridor: { color: '#94a3b8', svg: '<svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M4 15h16v-2H4v2zm0 4h16v-2H4v2zm0-8h16V9H4v2zm0-6v2h16V5H4z"/></svg>' },
+    };
+    return icons[type] || icons.room;
+  };
+
+  // 监听建筑模型变化
+  useEffect(() => {
+    if (!mapInstanceRef.current || !buildingModel) return;
+    renderBuildingModel(mapInstanceRef.current, buildingModel, currentFloor);
+  }, [buildingModel, currentFloor]);
 
   // 监听派遣状态变化 - 派遣后显示路径
   useEffect(() => {

@@ -1,0 +1,158 @@
+{
+  "id": "building-001",
+  "name": "估衣街社区服务中心",
+  "description": "位于估衣街的社区服务中心建筑模型",
+  "boundaryCoords": [
+    [117.1853, 39.1500],
+    [117.1860, 39.1500],
+    [117.1860, 39.1493],
+    [117.1853, 39.1493]
+  ],
+  "originCoord": [117.1853, 39.1493],
+  "rotation": 0,
+  "meterToLng": 0.000011,
+  "meterToLat": 0.000009,
+  "floors": [
+    {
+      "floorNumber": 1,
+      "name": "一楼",
+      "height": 3.5,
+      "outline": [
+        { "x": 0, "y": 0 },
+        { "x": 50, "y": 0 },
+        { "x": 50, "y": 40 },
+        { "x": 0, "y": 40 }
+      ],
+      "rooms": [
+        {
+          "id": "room-101",
+          "name": "服务大厅",
+          "type": "public",
+          "outline": [
+            { "x": 0, "y": 20 },
+            { "x": 25, "y": 20 },
+            { "x": 25, "y": 40 },
+            { "x": 0, "y": 40 }
+          ],
+          "center": { "x": 12.5, "y": 30 }
+        },
+        {
+          "id": "room-102",
+          "name": "健康咨询室",
+          "type": "public",
+          "outline": [
+            { "x": 25, "y": 20 },
+            { "x": 50, "y": 20 },
+            { "x": 50, "y": 40 },
+            { "x": 25, "y": 40 }
+          ],
+          "center": { "x": 37.5, "y": 30 }
+        },
+        {
+          "id": "room-103",
+          "name": "办公室",
+          "type": "commercial",
+          "outline": [
+            { "x": 0, "y": 0 },
+            { "x": 25, "y": 0 },
+            { "x": 25, "y": 20 },
+            { "x": 0, "y": 20 }
+          ],
+          "center": { "x": 12.5, "y": 10 }
+        },
+        {
+          "id": "room-104",
+          "name": "储藏室",
+          "type": "utility",
+          "outline": [
+            { "x": 25, "y": 0 },
+            { "x": 50, "y": 0 },
+            { "x": 50, "y": 20 },
+            { "x": 25, "y": 20 }
+          ],
+          "center": { "x": 37.5, "y": 10 }
+        }
+      ],
+      "facilities": [
+        {
+          "id": "facility-001",
+          "name": "主入口",
+          "type": "entrance",
+          "position": { "x": 25, "y": 0 },
+          "attributes": { "openingHours": "8:00-18:00" }
+        },
+        {
+          "id": "facility-002",
+          "name": "电梯",
+          "type": "elevator",
+          "position": { "x": 45, "y": 35 },
+          "attributes": { "capacity": "8人" }
+        },
+        {
+          "id": "facility-003",
+          "name": "楼梯",
+          "type": "stairs",
+          "position": { "x": 5, "y": 35 }
+        },
+        {
+          "id": "facility-004",
+          "name": "无障碍WC",
+          "type": "wc",
+          "position": { "x": 48, "y": 5 },
+          "attributes": { "accessible": "true" }
+        }
+      ]
+    },
+    {
+      "floorNumber": 2,
+      "name": "二楼",
+      "height": 3.2,
+      "outline": [
+        { "x": 0, "y": 0 },
+        { "x": 50, "y": 0 },
+        { "x": 50, "y": 40 },
+        { "x": 0, "y": 40 }
+      ],
+      "rooms": [
+        {
+          "id": "room-201",
+          "name": "健康讲座室",
+          "type": "public",
+          "outline": [
+            { "x": 0, "y": 0 },
+            { "x": 50, "y": 0 },
+            { "x": 50, "y": 25 },
+            { "x": 0, "y": 25 }
+          ],
+          "center": { "x": 25, "y": 12.5 }
+        },
+        {
+          "id": "room-202",
+          "name": "康复训练室",
+          "type": "public",
+          "outline": [
+            { "x": 0, "y": 25 },
+            { "x": 50, "y": 25 },
+            { "x": 50, "y": 40 },
+            { "x": 0, "y": 40 }
+          ],
+          "center": { "x": 25, "y": 32.5 }
+        }
+      ],
+      "facilities": [
+        {
+          "id": "facility-005",
+          "name": "电梯",
+          "type": "elevator",
+          "position": { "x": 45, "y": 35 }
+        },
+        {
+          "id": "facility-006",
+          "name": "楼梯",
+          "type": "stairs",
+          "position": { "x": 5, "y": 35 }
+        }
+      ]
+    }
+  ]
+}
