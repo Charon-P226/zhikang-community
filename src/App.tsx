@@ -1,470 +1,562 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { 
-  LineChart, 
-  Line, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  BarChart,
-  Bar
-} from 'recharts';
-import { 
-  Map as MapIcon, 
-  TrendingUp, 
-  AlertTriangle, 
-  Navigation, 
-  Search, 
-  Bell, 
-  Settings, 
-  ChevronRight, 
-  Accessibility, 
-  Siren, 
-  Info, 
-  CheckCircle2, 
-  X, 
-  MoreVertical,
-  User,
-  Activity,
-  MapPin,
-  Clock,
-  ShieldCheck,
-  Plus,
-  Minus
-} from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import React, { useState, useEffect } from 'react';
+import { motion } from 'motion/react';
 import { AppView, RiskArea, Notification, Incident } from './types';
 import AMapView from './components/AMapView';
+import {
+  Map as MapIcon, TrendingUp, AlertTriangle, Navigation, Search, Bell, Settings,
+  ChevronRight, Accessibility, Siren, Info, CheckCircle2, X, User, Activity, MapPin,
+  Clock, ShieldCheck, Plus, Minus, Phone, Timer, Heart, BellPlus,
+  Footprints, Moon, Droplets, Home, Zap
+} from 'lucide-react';
 
-// Mock Data
 const RISK_AREAS: RiskArea[] = [
-  { 
-    id: '1', 
-    name: '北广场片区', 
-    riskLevel: '极高', 
-    percentage: 84,
-    activeCases: 156,
-    trend: 'up',
-    population: 1200,
-    description: '该区域为高密度住宅区，近期检测到多起聚集性感染。建议加强消杀并限制非必要出入。',
-    coordinates: { top: '30%', left: '38%' }
-  },
-  { 
-    id: '2', 
-    name: '社区中心', 
-    riskLevel: '中等', 
-    percentage: 52,
-    activeCases: 42,
-    trend: 'stable',
-    population: 800,
-    description: '公共服务中心，人流量较大。目前风险受控，但需维持严格的体温监测。',
-    coordinates: { top: '55%', left: '45%' }
-  },
-  { 
-    id: '3', 
-    name: '中心交通枢纽', 
-    riskLevel: '中等', 
-    percentage: 48,
-    activeCases: 35,
-    trend: 'down',
-    population: 2500,
-    description: '交通枢纽区域，流动人口多。得益于高效的通风系统和频繁消毒，风险呈下降趋势。',
-    coordinates: { top: '40%', left: '65%' }
-  },
+  { id: '1', name: '北广场片区', riskLevel: '极高', percentage: 84, activeCases: 156, trend: 'up', population: 1200, description: '该区域为高密度住宅区，近期检测到多起聚集性感染。', coordinates: { top: '30%', left: '38%' } },
+  { id: '2', name: '社区中心', riskLevel: '中等', percentage: 52, activeCases: 42, trend: 'stable', population: 800, description: '公共服务中心，人流量较大。', coordinates: { top: '55%', left: '45%' } },
+  { id: '3', name: '中心交通枢纽', riskLevel: '中等', percentage: 48, activeCases: 35, trend: 'down', population: 2500, description: '交通枢纽区域，流动人口多。', coordinates: { top: '40%', left: '65%' } },
 ];
 
-const NOTIFICATIONS_MOCK: Notification[] = [
+const NOTIFICATIONS: Notification[] = [
   { id: '1', title: '强制佩戴口罩区域', content: '由于流感样症状激增，第4区和中央广场立即生效。', time: '12分钟前', type: 'danger', isRead: false },
-  { id: '2', title: '移动检测诊所', content: '位于东侧图书馆。开放至下午6:00。居民无需预约。', time: '1小时前', type: 'info', isRead: false },
-  { id: '3', title: '避让警告', content: '地铁站空气传感器检测到高病毒载量。通风维护正在进行中。', time: '3小时前', type: 'warning', isRead: false },
-  { id: '4', title: '区域清理完毕', content: '西侧健身房已完成深度消毒。风险等级降至“安全”。', time: '5小时前', type: 'success', isRead: false },
+  { id: '2', title: '移动检测诊所', content: '位于东侧图书馆。开放至下午6:00。', time: '1小时前', type: 'info', isRead: false },
+  { id: '3', title: '避让警告', content: '地铁站空气传感器检测到高病毒载量。', time: '3小时前', type: 'warning', isRead: false },
+  { id: '4', title: '区域清理完毕', content: '西侧健身房已完成深度消毒。', time: '5小时前', type: 'success', isRead: false },
 ];
 
 const INCIDENTS: Incident[] = [
-  {
-    id: '1',
-    type: '检测到摔倒',
-    location: '爱华里小区 4号楼',
-    resident: '王建国',
-    time: '02:14',
-    status: 'pending',
-    distance: '0.8公里',
-    image: 'https://picsum.photos/seed/building/400/300',
-    coordinates: [117.198, 39.151] as [number, number]
-  },
-  {
-    id: '2',
-    type: '紧急求助',
-    location: '万隆大胡同商业中心',
-    resident: '李明华',
-    time: '02:18',
-    status: 'pending',
-    distance: '1.2公里',
-    image: 'https://picsum.photos/seed/building2/400/300',
-    coordinates: [117.194, 39.152] as [number, number]
-  },
-  {
-    id: '3',
-    type: '健康异常',
-    location: '大胡同天奕商城',
-    resident: '张伟',
-    time: '02:25',
-    status: 'pending',
-    distance: '1.5公里',
-    image: 'https://picsum.photos/seed/building3/400/300',
-    coordinates: [117.196, 39.150] as [number, number]
-  }
-];
-const WEEKLY_STATS = [
-  { name: 'Mon', responseTime: 4.5, alerts: 10, health: 85 },
-  { name: 'Tue', responseTime: 4.2, alerts: 12, health: 87 },
-  { name: 'Wed', responseTime: 4.8, alerts: 15, health: 84 },
-  { name: 'Thu', responseTime: 4.1, alerts: 8, health: 89 },
-  { name: 'Fri', responseTime: 4.3, alerts: 11, health: 88 },
-  { name: 'Sat', responseTime: 3.9, alerts: 7, health: 91 },
-  { name: 'Sun', responseTime: 4.2, alerts: 12, health: 88 },
+  { id: '1', type: '检测到摔倒', location: '爱华里', resident: '王建国', time: '02:14', status: 'pending', distance: '0.2公里', image: '', coordinates: [117.188, 39.149] as [number, number] },
+  { id: '2', type: '紧急求助', location: '估衣街', resident: '李明华', time: '02:18', status: 'pending', distance: '0.3公里', image: '', coordinates: [117.183, 39.151] as [number, number] },
+  { id: '3', type: '健康异常', location: '天津都行商城', resident: '张伟', time: '02:25', status: 'pending', distance: '0.4公里', image: '', coordinates: [117.186, 39.148] as [number, number] },
+  { id: '4', type: '突发晕倒', location: '北大关', resident: '赵丽', time: '02:30', status: 'pending', distance: '0.3公里', image: '', coordinates: [117.179, 39.147] as [number, number] },
+  { id: '5', type: '紧急求助', location: '爱华里附近', resident: '刘强', time: '02:35', status: 'pending', distance: '0.2公里', image: '', coordinates: [117.189, 39.150] as [number, number] },
+  { id: '6', type: '健康异常', location: '估衣街西口', resident: '陈芳', time: '02:40', status: 'pending', distance: '0.3公里', image: '', coordinates: [117.180, 39.152] as [number, number] },
+  { id: '7', type: '检测到摔倒', location: '天津都行商城北', resident: '周杰', time: '02:45', status: 'pending', distance: '0.4公里', image: '', coordinates: [117.185, 39.150] as [number, number] },
+  { id: '8', type: '突发晕倒', location: '北大关南', resident: '孙娟', time: '02:50', status: 'pending', distance: '0.3公里', image: '', coordinates: [117.177, 39.148] as [number, number] },
+  { id: '9', type: '紧急求助', location: '估衣街中段', resident: '吴磊', time: '02:55', status: 'pending', distance: '0.2公里', image: '', coordinates: [117.181, 39.149] as [number, number] },
+  { id: '10', type: '健康异常', location: '爱华里东', resident: '郑浩', time: '03:00', status: 'pending', distance: '0.3公里', image: '', coordinates: [117.190, 39.147] as [number, number] },
 ];
 
-const MONTHLY_STATS = Array.from({ length: 30 }, (_, i) => ({
-  name: `${i + 1}`,
-  responseTime: 4 + Math.random() * 1,
-  alerts: Math.floor(5 + Math.random() * 15),
-  health: 80 + Math.floor(Math.random() * 15),
-}));
+const STATS_DATA = {
+  responseTime: {
+    title: '平均响应时间',
+    value: '8.5分钟',
+    icon: Timer,
+    color: 'text-blue-600',
+    bgColor: 'bg-blue-50',
+    unit: '分钟',
+    weekly: [12, 10, 9, 11, 8, 7, 8.5],
+    monthly: [15, 14, 12, 11, 10, 9, 8.5, 9, 10, 8, 7, 8.5],
+    labels: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
+    monthlyLabels: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月']
+  },
+  activeAlerts: {
+    title: '活动警报',
+    value: '3',
+    icon: AlertTriangle,
+    color: 'text-red-600',
+    bgColor: 'bg-red-50',
+    unit: '次',
+    weekly: [5, 3, 4, 2, 6, 4, 3],
+    monthly: [12, 8, 15, 10, 7, 9, 11, 6, 8, 5, 4, 3],
+    labels: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
+    monthlyLabels: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月']
+  },
+  healthIndex: {
+    title: '社区健康指数',
+    value: '良好',
+    icon: Heart,
+    color: 'text-emerald-600',
+    bgColor: 'bg-emerald-50',
+    unit: '分',
+    weekly: [78, 82, 85, 80, 88, 90, 92],
+    monthly: [65, 70, 72, 75, 78, 80, 82, 85, 88, 90, 92, 95],
+    labels: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
+    monthlyLabels: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月']
+  }
+};
+
+type StatType = 'responseTime' | 'activeAlerts' | 'healthIndex';
+
+const FAQ_DATA = [
+  { id: '1', question: '如何申请检测包？', answer: '点击"申请检测包"，填写基本信息后提交，社区将安排配送。' },
+  { id: '2', question: '检测结果如何查询？', answer: '检测结果将在24小时内通过短信或APP通知您。' },
+  { id: '3', question: '如何联系家庭医生？', answer: '可拨打社区服务热线或在线预约家庭医生问诊。' },
+  { id: '4', question: '症状严重怎么办？', answer: '如出现严重症状，请立即拨打120急救电话。' },
+];
+
+const HELP_INFO = {
+  hotline: '400-888-9999',
+  emergency: '120',
+  police: '110',
+  serviceHours: '周一至周日 8:00-20:00',
+  address: '天津市红桥区三岔河口社区服务中心',
+};
+
+type HelpTab = 'form' | 'help' | 'faq';
 
 export default function App() {
-  const [activeView, setActiveView] = useState<AppView>(AppView.HEALTH_RISK);
+  const [activeView, setActiveView] = useState<AppView>(AppView.HOME);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedStat, setSelectedStat] = useState<'responseTime' | 'alerts' | 'health' | null>(null);
-  const [timeRange, setTimeRange] = useState<'week' | 'month'>('week');
-  const [isDispatched, setIsDispatched] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>(NOTIFICATIONS_MOCK);
+  const [showSearchResults, setShowSearchResults] = useState(false);
+  const [showHomeSearchResults, setShowHomeSearchResults] = useState(false);
+  const [incidentsCollapsed, setIncidentsCollapsed] = useState(true);
+  const [allIncidents, setAllIncidents] = useState<Incident[]>(INCIDENTS);
+  const [activeDataLayer, setActiveDataLayer] = useState<'disease' | 'heat' | 'air'>('heat');
+
+  // 根据搜索关键词过滤急救点
+  const filteredIncidents = allIncidents.filter(incident =>
+    incident.location.includes(searchQuery) ||
+    incident.resident.includes(searchQuery) ||
+    incident.type.includes(searchQuery)
+  );
+
+  // 处理搜索提交
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      if (activeView === AppView.HOME) {
+        setShowHomeSearchResults(true);
+      } else {
+        setShowSearchResults(true);
+      }
+    }
+  };
+
+  // 选择搜索结果
+  const handleSelectIncident = (incident: Incident) => {
+    setSelectedIncident(incident);
+    setIsIncidentDismissed(false);
+    setShowSearchResults(false);
+  };
+
   const [selectedRiskArea, setSelectedRiskArea] = useState<RiskArea | null>(null);
   const [zoom, setZoom] = useState(1);
   const [isIncidentDismissed, setIsIncidentDismissed] = useState(false);
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
-  const [countdown, setCountdown] = useState(105); // 救援倒计时（秒）
+  const [isDispatched, setIsDispatched] = useState(false);
+  const [countdown, setCountdown] = useState(105);
+  const [notifications, setNotifications] = useState<Notification[]>(NOTIFICATIONS);
+  const [selectedStat, setSelectedStat] = useState<StatType | null>(null);
+  const [timeRange, setTimeRange] = useState<'weekly' | 'monthly'>('weekly');
+  const [helpTab, setHelpTab] = useState<HelpTab>('form');
+  const [showHelpModal, setShowHelpModal] = useState(false);
+  const [showNotificationModal, setShowNotificationModal] = useState(false);
+  const [showEmergencyModal, setShowEmergencyModal] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [newNotification, setNewNotification] = useState({ title: '', content: '', type: 'info' as 'info' | 'warning' | 'danger' | 'success' });
 
-  // 救援倒计时逻辑
   useEffect(() => {
-    let timer: NodeJS.Timeout;
+    let timer: ReturnType<typeof setInterval>;
     if (isDispatched && countdown > 0) {
       timer = setInterval(() => {
-        setCountdown(prev => {
+        setCountdown((prev: number) => {
           if (prev <= 1) {
-            // 倒计时结束，重置救援状态
             setIsDispatched(false);
-            setCountdown(105); // 重置倒计时
             return 105;
           }
           return prev - 1;
         });
       }, 1000);
     }
-    return () => {
-      if (timer) clearInterval(timer);
-    };
+    return () => { if (timer) clearInterval(timer); };
   }, [isDispatched, countdown]);
 
-  // 忽略后30秒出现新的救援点
   useEffect(() => {
-    let timer: NodeJS.Timeout;
+    let timer: ReturnType<typeof setTimeout>;
     if (isIncidentDismissed) {
-      timer = setTimeout(() => {
-        setIsIncidentDismissed(false);
-      }, 30000); // 30秒后出现新救援
+      timer = setTimeout(() => setIsIncidentDismissed(false), 30000);
     }
-    return () => {
-      if (timer) clearTimeout(timer);
-    };
+    return () => { if (timer) clearTimeout(timer); };
   }, [isIncidentDismissed]);
 
-  const handleZoomIn = () => setZoom(prev => Math.min(prev + 0.2, 3));
-  const handleZoomOut = () => setZoom(prev => Math.max(prev - 0.2, 0.5));
-  const handleLocate = () => {
-    setZoom(1.5);
-    // In a real app, we'd center on user coordinates
+  // 当选择新事件时，重置忽略状态
+  useEffect(() => {
+    if (selectedIncident) {
+      setIsIncidentDismissed(false);
+    }
+  }, [selectedIncident]);
+  const handleZoomIn = () => setZoom((prev: number) => Math.min(prev + 0.2, 3));
+  const handleZoomOut = () => setZoom((prev: number) => Math.max(prev - 0.2, 0.5));
+
+  const renderLineChart = (stat: StatType) => {
+    const data = STATS_DATA[stat];
+    const values = timeRange === 'weekly' ? data.weekly : data.monthly;
+    const labels = timeRange === 'weekly' ? data.labels : data.monthlyLabels;
+    const maxValue = Math.max(...values);
+    const minValue = Math.min(...values);
+    const range = maxValue - minValue || 1;
+    const chartHeight = 140;
+    const paddingX = 10;
+    const chartInnerWidth = 280;
+    const chartWidth = chartInnerWidth - paddingX * 2;
+
+    const points = values.map((value: number, index: number) => {
+      const x = paddingX + (index / (values.length - 1)) * chartWidth;
+      const y = chartHeight - ((value - minValue) / range) * chartHeight;
+      return { x, y, value, label: labels[index] };
+    });
+
+    const pathD = points.map((point, index) =>
+      `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`
+    ).join(' ');
+
+    return (
+      <div className="mt-3">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs text-slate-500">时间范围:</span>
+          <div className="flex gap-1">
+            <button
+              onClick={() => setTimeRange('weekly')}
+              className={`px-3 py-1 text-xs rounded ${timeRange === 'weekly' ? 'bg-primary text-white' : 'bg-slate-100 text-slate-600'}`}
+            >
+              每周
+            </button>
+            <button
+              onClick={() => setTimeRange('monthly')}
+              className={`px-3 py-1 text-xs rounded ${timeRange === 'monthly' ? 'bg-primary text-white' : 'bg-slate-100 text-slate-600'}`}
+            >
+              每月
+            </button>
+          </div>
+        </div>
+
+        <div className="relative bg-slate-50 rounded-lg p-2">
+          <div className="absolute left-0 top-1 bottom-6 w-8 flex flex-col justify-between text-[8px] text-slate-400">
+            <span>{maxValue}{data.unit}</span>
+            <span>{Math.round((maxValue + minValue) / 2)}{data.unit}</span>
+            <span>{minValue}{data.unit}</span>
+          </div>
+
+          <div className="ml-8 mr-2">
+            <svg width="100%" height={chartHeight} viewBox={`0 0 ${chartInnerWidth} ${chartHeight}`} className="overflow-visible">
+              <defs>
+                <linearGradient id={`gradient-${stat}`} x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stopColor={stat === 'activeAlerts' ? '#ef4444' : stat === 'healthIndex' ? '#10b981' : '#3b82f6'} stopOpacity="0.3" />
+                  <stop offset="100%" stopColor={stat === 'activeAlerts' ? '#ef4444' : stat === 'healthIndex' ? '#10b981' : '#3b82f6'} stopOpacity="0.05" />
+                </linearGradient>
+              </defs>
+
+              <line x1={paddingX} y1="0" x2={paddingX} y2={chartHeight} stroke="#e2e8f0" strokeWidth="1" />
+              <line x1={paddingX} y1={chartHeight / 3} x2={chartInnerWidth - 10} y2={chartHeight / 3} stroke="#e2e8f0" strokeDasharray="4" />
+              <line x1={paddingX} y1={(chartHeight * 2) / 3} x2={chartInnerWidth - 10} y2={(chartHeight * 2) / 3} stroke="#e2e8f0" strokeDasharray="4" />
+              <line x1={paddingX} y1={chartHeight} x2={chartInnerWidth - 10} y2={chartHeight} stroke="#e2e8f0" strokeWidth="1" />
+
+              <path d={`${pathD} L ${paddingX + chartWidth} ${chartHeight} L ${paddingX} ${chartHeight} Z`} fill={`url(#gradient-${stat})`} />
+
+              <path d={pathD} fill="none" stroke={stat === 'activeAlerts' ? '#ef4444' : stat === 'healthIndex' ? '#10b981' : '#3b82f6'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+
+              {points.map((point, index) => (
+                <g key={index}>
+                  <circle cx={point.x} cy={point.y} r="3" fill="white" stroke={stat === 'activeAlerts' ? '#ef4444' : stat === 'healthIndex' ? '#10b981' : '#3b82f6'} strokeWidth="2" />
+                  <title>{point.label}: {point.value}{data.unit}</title>
+                </g>
+              ))}
+            </svg>
+
+            <div className="flex justify-between text-[8px] text-slate-400 mt-1 px-1">
+              {labels.map((label: string, index: number) => (
+                <span key={index} className="flex-1 text-center">{label}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   };
-
-  const chartData = useMemo(() => {
-    return timeRange === 'week' ? WEEKLY_STATS : MONTHLY_STATS;
-  }, [timeRange]);
-
-  const statConfig = {
-    responseTime: { title: '平均响应时间', color: '#0066ff', unit: '分钟', key: 'responseTime' },
-    alerts: { title: '活动警报', color: '#ef4444', unit: '次', key: 'alerts' },
-    health: { title: '社区健康指数', color: '#10b981', unit: '分', key: 'health' },
-  };
-
-  const SYMPTOMS = [
-    { name: '发烧', description: '体温超过 37.5°C，伴有畏寒或出汗。', severity: 'high' },
-    { name: '干咳', description: '持续性的干咳，无痰或少痰。', severity: 'medium' },
-    { name: '乏力', description: '感到异常疲倦，即使休息后也难以缓解。', severity: 'medium' },
-    { name: '呼吸困难', description: '感到胸闷、气促，活动后加重。', severity: 'critical' },
-    { name: '肌肉酸痛', description: '全身或局部肌肉疼痛，类似流感症状。', severity: 'low' },
-  ];
-
-  const SELF_TEST_STEPS = [
-    { title: '体温测量', content: '使用电子体温计测量腋下或耳道温度，记录数值。' },
-    { title: '血氧监测', content: '如有家用血氧仪，请测量静息状态下的血氧饱和度。' },
-    { title: '症状自查', content: '对照上述症状列表，记录出现的症状及其持续时间。' },
-    { title: '风险评估', content: '根据症状严重程度和持续时间，初步评估健康风险。' },
-  ];
 
   return (
     <div className="flex flex-col h-screen bg-background-light text-slate-900 overflow-hidden">
-      {/* Header */}
-      <header className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-3 z-50">
+      <header className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-3 shrink-0">
         <div className="flex items-center gap-3">
           <div className="bg-primary p-1.5 rounded-lg text-white">
             <Activity size={24} />
           </div>
           <h2 className="text-xl font-bold tracking-tight">智康社区</h2>
         </div>
-
-        <div className="flex flex-1 justify-center max-w-xl px-8">
-          <div className="relative w-full">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input 
-              className="w-full bg-slate-100 border-none rounded-lg pl-10 pr-4 py-2 focus:ring-2 focus:ring-primary text-sm outline-none" 
-              placeholder="搜索特定区域、街道或设施..." 
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={() => setActiveView(AppView.NOTIFICATIONS)}
-            className={`p-2 rounded-lg relative transition-colors ${activeView === AppView.NOTIFICATIONS ? 'bg-primary text-white' : 'text-slate-600 hover:bg-slate-100'}`}
-          >
-            <Bell size={20} />
-            <span className={`absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 ${activeView === AppView.NOTIFICATIONS ? 'border-primary' : 'border-white'}`}></span>
-          </button>
-          <button className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg">
-            <Settings size={20} />
-          </button>
-          <div className="h-8 w-px bg-slate-200 mx-1"></div>
-          <div className="flex items-center gap-3 pl-2">
-            <div className="text-right hidden sm:block">
-              <p className="text-xs font-bold">陈莎拉 博士</p>
-              <p className="text-[10px] text-slate-500">公共卫生官员</p>
-            </div>
-            <div className="size-10 rounded-full bg-primary/20 flex items-center justify-center overflow-hidden border border-primary/30">
-              <img 
-                className="object-cover size-full" 
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuDJL0ExCzMgrxridGN0YflpZyh18S-JFnOtJe1e2gZrjo-wC2o5MshlHVHeFRZ0vB5y6ujLypxlgzbKaRHGqCCrGg69xpUHiztjNb0a9fhON_nfJ5QXFV6fKu8g38ZItCZ0DUMHaDZlE0bbend15gjYeBnpfGmhV2Vi2AxZzsYmob3bA7HZ8w39DF1ldsSqjZqEYqz732v8Y2r6lwy9K-IcFyP1vqn-XdkcBXwajz-M4oXc1VpqftQXTdL5PWd6vAGzWsY52lz-h5U" 
-                alt="Profile"
-                referrerPolicy="no-referrer"
+        <div className="flex-1 max-w-xl mx-8">
+          <form onSubmit={handleSearch}>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+              <input
+                className="w-full bg-slate-100 border-none rounded-lg pl-10 pr-4 py-2 focus:ring-2 focus:ring-primary text-sm outline-none"
+                placeholder="搜索健康档案，服务..."
+                value={searchQuery}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch(e)}
               />
+            </div>
+          </form>
+        </div>
+        <div className="flex items-center gap-4">
+          <button onClick={() => setActiveView(AppView.NOTIFICATIONS)} className="p-2 rounded-lg relative">
+            <Bell size={20} />
+          </button>
+          <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
+            <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-white">
+              <User size={16} />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-sm font-medium">张先生</span>
+              <span className="text-[10px] text-primary">高级居民</span>
             </div>
           </div>
         </div>
       </header>
 
-      <main className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
-        <aside className="w-72 bg-white border-r border-slate-200 flex flex-col p-4 gap-6 overflow-y-auto">
-          <div>
+      <div className="flex flex-1 overflow-hidden">
+        {activeView !== AppView.HOME && (
+        <aside className="w-72 bg-white border-r border-slate-200 flex flex-col p-4 shrink-0 overflow-y-auto">
+          <div className="mb-4">
             <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-3 px-2">
               {activeView === AppView.HEALTH_RISK ? '主仪表板' : activeView === AppView.ACCESSIBILITY ? '监测' : '应急监测'}
             </h3>
             <nav className="space-y-1">
-              <SidebarItem 
-                icon={<Siren size={20} />} 
-                label="应急响应" 
-                active={activeView === AppView.EMERGENCY_RESPONSE} 
-                onClick={() => setActiveView(AppView.EMERGENCY_RESPONSE)}
-              />
-              <SidebarItem 
-                icon={<MapIcon size={20} />} 
-                label="健康风险热力图" 
-                active={activeView === AppView.HEALTH_RISK} 
-                onClick={() => setActiveView(AppView.HEALTH_RISK)}
-              />
-              <SidebarItem 
-                icon={<Accessibility size={20} />} 
-                label="无障碍出行" 
-                active={activeView === AppView.ACCESSIBILITY} 
-                onClick={() => setActiveView(AppView.ACCESSIBILITY)}
-              />
+              <button onClick={() => setActiveView(AppView.EMERGENCY_RESPONSE)} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg ${activeView === AppView.EMERGENCY_RESPONSE ? 'bg-primary text-white' : 'hover:bg-slate-100'}`}>
+                <Siren size={20} /><span className="text-sm">应急响应</span>
+              </button>
+              <button onClick={() => setActiveView(AppView.HEALTH_RISK)} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg ${activeView === AppView.HEALTH_RISK ? 'bg-primary text-white' : 'hover:bg-slate-100'}`}>
+                <MapIcon size={20} /><span className="text-sm">健康风险热力图</span>
+              </button>
+              <button onClick={() => setActiveView(AppView.ACCESSIBILITY)} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg ${activeView === AppView.ACCESSIBILITY ? 'bg-primary text-white' : 'hover:bg-slate-100'}`}>
+                <Accessibility size={20} /><span className="text-sm">无障碍出行</span>
+              </button>
             </nav>
           </div>
 
-          <AnimatePresence mode="wait">
-            {activeView === AppView.HEALTH_RISK && (
-              <motion.div
-                key="health-sidebar"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="space-y-6"
+          {activeView === AppView.EMERGENCY_RESPONSE && (
+            <div className="mb-4">
+              <button
+                onClick={() => { console.log('点击了紧急事件，incidentsCollapsed:', !incidentsCollapsed); setIncidentsCollapsed(!incidentsCollapsed); }}
+                className="w-full flex items-center justify-between px-2 mb-2 cursor-pointer hover:bg-slate-100 rounded py-1"
               >
-                <div>
-                  <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-3 px-2">风险趋势</h3>
-                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                    <div className="flex items-end justify-between mb-2">
-                      <div>
-                        <p className="text-2xl font-bold">+12.4%</p>
-                        <p className="text-[10px] text-slate-500">流感发病率 (14天)</p>
-                      </div>
-                      <div className="flex items-center text-red-500 text-xs font-bold">
-                        <TrendingUp size={14} className="mr-1" />
-                        <span>高风险</span>
-                      </div>
-                    </div>
-                    <div className="h-20 w-full mt-4">
-                      <svg className="w-full h-full" viewBox="0 0 100 40">
-                        <path d="M0 35 Q 20 35, 40 25 T 80 10 T 100 5" fill="none" stroke="#0066ff" strokeWidth="2" vectorEffect="non-scaling-stroke" />
-                        <path d="M0 35 Q 20 35, 40 25 T 80 10 T 100 5 V 40 H 0 Z" fill="url(#grad)" opacity="0.1" />
-                        <defs>
-                          <linearGradient id="grad" x1="0%" x2="0%" y1="0%" y2="100%">
-                            <stop offset="0%" style={{ stopColor: '#0066ff', stopOpacity: 1 }} />
-                            <stop offset="100%" style={{ stopColor: '#0066ff', stopOpacity: 0 }} />
-                          </linearGradient>
-                        </defs>
-                      </svg>
-                    </div>
-                    <div className="flex justify-between mt-2 text-[10px] text-slate-400 font-medium">
-                      <span>Mon</span><span>Wed</span><span>Fri</span><span>Sun</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-3 px-2">高风险片区</h3>
-                  <div className="space-y-2">
-                    {RISK_AREAS.map(area => (
-                      <div key={area.id} className={`flex items-center gap-3 p-2 rounded-lg border ${area.riskLevel === '极高' ? 'bg-red-50 border-red-100' : 'bg-orange-50 border-orange-100'}`}>
-                        <div className={`size-8 rounded-lg flex items-center justify-center text-white ${area.riskLevel === '极高' ? 'bg-red-500' : 'bg-orange-500'}`}>
-                          {area.riskLevel === '极高' ? <AlertTriangle size={18} /> : <Info size={18} />}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-bold truncate">{area.name}</p>
-                          <p className={`text-[10px] ${area.riskLevel === '极高' ? 'text-red-600' : 'text-orange-600'}`}>{area.riskLevel}风险 - {area.percentage}%</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {activeView === AppView.ACCESSIBILITY && (
-              <motion.div
-                key="accessibility-sidebar"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="space-y-6"
-              >
-                <div>
-                  <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-3 px-2">路线状态</h3>
-                  <div className="space-y-3">
-                    <div className="p-4 rounded-xl border border-slate-100 bg-slate-50/50">
-                      <p className="text-xs text-slate-500 font-medium mb-1">电梯状态</p>
-                      <div className="flex items-end justify-between">
-                        <span className="text-lg font-bold tracking-tight">畅通</span>
-                        <CheckCircle2 className="text-emerald-500" size={20} />
-                      </div>
-                    </div>
-                    <div className="p-4 rounded-xl border border-slate-100 bg-slate-50/50">
-                      <p className="text-xs text-slate-500 font-medium mb-1">坡道状态</p>
-                      <div className="flex items-end justify-between">
-                        <span className="text-lg font-bold tracking-tight">畅通</span>
-                        <ShieldCheck className="text-blue-500" size={20} />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-auto pt-4 border-t border-slate-100">
-                  <div className="bg-primary/10 rounded-xl p-3 text-center">
-                    <p className="text-[10px] font-bold text-primary mb-1 uppercase tracking-widest">快捷点</p>
-                    <div className="grid grid-cols-2 gap-2 mt-2">
-                      <button className="p-2 bg-white rounded-lg shadow-sm border border-slate-100 hover:border-primary transition-colors flex justify-center">
-                        <span className="text-primary text-sm font-bold">WC</span>
-                      </button>
-                      <button className="p-2 bg-white rounded-lg shadow-sm border border-slate-100 hover:border-primary transition-colors flex justify-center">
-                        <span className="text-primary text-sm font-bold">🍴</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {activeView === AppView.EMERGENCY_RESPONSE && (
-              <motion.div
-                key="emergency-sidebar"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="space-y-6"
-              >
-                <div>
-                  <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-3 px-2">社区统计</h3>
-                  <div className="grid grid-cols-1 gap-3">
-                    <button 
-                      onClick={() => setSelectedStat('responseTime')}
-                      className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-left hover:border-primary transition-colors group"
-                    >
-                      <p className="text-[10px] text-slate-500 font-bold uppercase group-hover:text-primary">平均响应时间</p>
-                      <div className="flex items-end justify-between mt-1">
-                        <p className="text-2xl font-bold">4.2m</p>
-                        <span className="text-[10px] text-emerald-500 font-bold">-0.5% ↘</span>
-                      </div>
-                    </button>
-                    <button 
-                      onClick={() => setSelectedStat('alerts')}
-                      className="p-3 bg-red-50 rounded-xl border border-red-100 text-left hover:border-red-500 transition-colors group"
-                    >
-                      <p className="text-[10px] text-red-500 font-bold uppercase group-hover:text-red-600">活动警报</p>
-                      <div className="flex items-end justify-between mt-1">
-                        <p className="text-2xl font-bold text-red-600">12</p>
-                        <span className="text-[10px] text-red-500 font-bold">+2 ↗</span>
-                      </div>
-                    </button>
-                    <button 
-                      onClick={() => setSelectedStat('health')}
-                      className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-left hover:border-emerald-500 transition-colors group"
-                    >
-                      <p className="text-[10px] text-slate-500 font-bold uppercase group-hover:text-emerald-500">社区健康指数</p>
-                      <div className="flex items-end justify-between mt-1">
-                        <p className="text-2xl font-bold">88<span className="text-sm text-slate-400">/100</span></p>
-                        <span className="text-[10px] text-emerald-500 font-bold">+1% ↗</span>
-                      </div>
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          <div className="mt-auto border-t border-slate-200 pt-4">
-            <div className="bg-primary/10 rounded-xl p-3">
-              <p className="text-xs font-bold text-primary mb-1">健康支持</p>
-              <p className="text-[10px] text-slate-500 leading-relaxed mb-3">报告新症状或申请检测包。</p>
-              <button 
-                onClick={() => setActiveView(AppView.HEALTH_SUPPORT)}
-                className="w-full bg-primary text-white text-xs font-bold py-2 rounded-lg hover:bg-primary/90 transition-colors"
-              >
-                寻求帮助
+                <h4 className="text-xs font-bold text-slate-600">紧急事件 ({allIncidents.length})</h4>
+                <ChevronRight
+                  size={16}
+                  className={`text-slate-400 transition-transform ${incidentsCollapsed ? '' : 'rotate-90'}`}
+                />
               </button>
+              {!incidentsCollapsed && (
+                <div className="space-y-2">
+                  {(searchQuery ? filteredIncidents : allIncidents).map(incident => (
+                    <button key={incident.id} onClick={() => { setSelectedIncident(incident); setIsIncidentDismissed(false); }} className={`w-full p-2 rounded-lg text-left transition-colors ${selectedIncident?.id === incident.id ? 'bg-red-50 border border-red-200' : 'bg-slate-50 hover:bg-slate-100'}`}>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-red-600">{incident.type}</span>
+                        <span className="text-[10px] text-slate-400">{incident.time}</span>
+                      </div>
+                      <p className="text-[10px] text-slate-600 mt-1">{incident.location}</p>
+                      <p className="text-[9px] text-slate-400">{incident.resident} · {incident.distance}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
+          )}
+
+          {activeView === AppView.EMERGENCY_RESPONSE && (
+            <div className="mb-4">
+              <h4 className="text-xs font-bold text-slate-600 mb-2 px-2">社区统计</h4>
+              <div className="space-y-2">
+                <button onClick={() => setSelectedStat(selectedStat === 'responseTime' ? null : 'responseTime')} className={`w-full p-2 rounded-lg text-left transition-all ${selectedStat === 'responseTime' ? 'bg-blue-50 border border-blue-200' : 'bg-slate-50 hover:bg-slate-100'}`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="size-6 bg-blue-50 rounded flex items-center justify-center"><Timer size={14} className="text-blue-600" /></div>
+                      <span className="text-[10px] font-medium">平均响应时间</span>
+                    </div>
+                    <span className="text-xs font-bold text-blue-600">{STATS_DATA.responseTime.value}</span>
+                  </div>
+                </button>
+
+                <button onClick={() => setSelectedStat(selectedStat === 'activeAlerts' ? null : 'activeAlerts')} className={`w-full p-2 rounded-lg text-left transition-all ${selectedStat === 'activeAlerts' ? 'bg-red-50 border border-red-200' : 'bg-slate-50 hover:bg-slate-100'}`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="size-6 bg-red-50 rounded flex items-center justify-center"><AlertTriangle size={14} className="text-red-600" /></div>
+                      <span className="text-[10px] font-medium">活动警报</span>
+                    </div>
+                    <span className="text-xs font-bold text-red-600">{STATS_DATA.activeAlerts.value}</span>
+                  </div>
+                </button>
+
+                <button onClick={() => setSelectedStat(selectedStat === 'healthIndex' ? null : 'healthIndex')} className={`w-full p-2 rounded-lg text-left transition-all ${selectedStat === 'healthIndex' ? 'bg-emerald-50 border border-emerald-200' : 'bg-slate-50 hover:bg-slate-100'}`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="size-6 bg-emerald-50 rounded flex items-center justify-center"><Heart size={14} className="text-emerald-600" /></div>
+                      <span className="text-[10px] font-medium">社区健康指数</span>
+                    </div>
+                    <span className="text-xs font-bold text-emerald-600">{STATS_DATA.healthIndex.value}</span>
+                  </div>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {activeView === AppView.HEALTH_RISK && (
+            <div className="mb-4">
+              <h4 className="text-xs font-bold text-slate-600 mb-2 px-2">活动数据层</h4>
+              <div className="grid grid-cols-3 gap-1 mb-3">
+                <button onClick={() => setActiveDataLayer('disease')} className={`p-2 rounded-lg text-[10px] font-medium text-center transition-colors ${activeDataLayer === 'disease' ? 'bg-red-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                  传染病
+                </button>
+                <button onClick={() => setActiveDataLayer('heat')} className={`p-2 rounded-lg text-[10px] font-medium text-center transition-colors ${activeDataLayer === 'heat' ? 'bg-red-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                  商业活力
+                </button>
+                <button onClick={() => setActiveDataLayer('air')} className={`p-2 rounded-lg text-[10px] font-medium text-center transition-colors ${activeDataLayer === 'air' ? 'bg-red-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                  空气污染物
+                </button>
+              </div>
+              <h4 className="text-xs font-bold text-slate-600 mb-2 px-2">风险区域统计</h4>
+              <div className="space-y-3">
+                {RISK_AREAS.map(area => (
+                  <div key={area.id} onClick={() => setSelectedRiskArea(area)} className={`p-2 rounded-lg cursor-pointer transition-colors ${selectedRiskArea?.id === area.id ? 'bg-primary/10 border border-primary/30' : 'bg-slate-50 hover:bg-slate-100'}`}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-bold">{area.name}</span>
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded ${area.riskLevel === '极高' ? 'bg-red-100 text-red-600' : area.riskLevel === '中等' ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'}`}>{area.riskLevel}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                        <div className="h-full bg-primary rounded-full" style={{ width: `${area.percentage}%` }} />
+                      </div>
+                      <span className="text-[9px] text-slate-500">{area.percentage}%</span>
+                    </div>
+                    <p className="text-[9px] text-slate-400 mt-1">{area.activeCases} 活跃病例 · {area.population} 人口</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="mt-auto bg-slate-50 rounded-xl p-3 border border-slate-100">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] font-bold text-slate-500">社区健康指数</p>
+              <TrendingUp size={12} className="text-emerald-500" />
+            </div>
+            <p className="text-lg font-bold text-primary">良好</p>
+            <p className="text-[9px] text-slate-400">较昨日上升 3.2%</p>
+          </div>
+
+          <div className="mt-3 bg-primary/10 rounded-xl p-3">
+            <p className="text-xs font-bold text-primary mb-1">健康支持</p>
+            <p className="text-[10px] text-slate-500 mb-3">报告新症状或申请检测包。</p>
+            <button onClick={() => setActiveView(AppView.HEALTH_SUPPORT)} className="w-full bg-primary text-white text-xs font-bold py-2 rounded-lg">寻求帮助</button>
           </div>
         </aside>
+        )}
 
-        {/* Main Content */}
-        <AMapView
+        <div className="flex-1 relative">
+          {/* 主界面/Home View */}
+          {activeView === AppView.HOME && (
+          <div className="flex-1 bg-gradient-to-br from-slate-50 to-blue-50 overflow-y-auto">
+            <div className="p-8 max-w-6xl mx-auto h-full flex flex-col">
+              {/* 欢迎标题 */}
+              <div className="mb-10">
+                <h1 className="text-3xl font-bold text-slate-800">欢迎回来，张先生</h1>
+                <p className="text-slate-500 text-sm mt-1">祝您今天健康愉快</p>
+              </div>
+
+              {/* 两列布局 */}
+              <div className="grid grid-cols-3 gap-8 flex-1">
+                {/* 左侧列 */}
+                <div className="col-span-2">
+                  {/* 个人健康概览 */}
+                  <div className="mb-8">
+                    <h2 className="text-xl font-bold text-slate-700 mb-5">个人健康概览</h2>
+                    <div className="grid grid-cols-2 gap-5">
+                      <div className="bg-white rounded-2xl p-6 shadow-sm">
+                        <div className="flex items-center justify-between mb-2">
+                          <Heart size={20} className="text-red-500" />
+                          <span className="text-[10px] text-emerald-500">正常</span>
+                        </div>
+                        <p className="text-2xl font-bold">72<span className="text-sm font-normal text-slate-400">bpm</span></p>
+                        <p className="text-xs text-slate-400">心率</p>
+                      </div>
+                      <div className="bg-white rounded-2xl p-4 shadow-sm">
+                        <div className="flex items-center justify-between mb-2">
+                          <Footprints size={20} className="text-blue-500" />
+                          <span className="text-[10px] text-emerald-500">达标</span>
+                        </div>
+                        <p className="text-2xl font-bold">8,523<span className="text-sm font-normal text-slate-400">步</span></p>
+                        <p className="text-xs text-slate-400">今日步数</p>
+                      </div>
+                      <div className="bg-white rounded-2xl p-4 shadow-sm">
+                        <div className="flex items-center justify-between mb-2">
+                          <Moon size={20} className="text-indigo-500" />
+                          <span className="text-[10px] text-emerald-500">良好</span>
+                        </div>
+                        <p className="text-2xl font-bold">7.5<span className="text-sm font-normal text-slate-400">小时</span></p>
+                        <p className="text-xs text-slate-400">睡眠质量</p>
+                      </div>
+                      <div className="bg-white rounded-2xl p-4 shadow-sm">
+                        <div className="flex items-center justify-between mb-2">
+                          <Droplets size={20} className="text-cyan-500" />
+                          <span className="text-[10px] text-emerald-500">充足</span>
+                        </div>
+                        <p className="text-2xl font-bold">1.8<span className="text-sm font-normal text-slate-400">L</span></p>
+                        <p className="text-xs text-slate-400">饮水量</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 快捷服务入口 */}
+                  <div className="mt-auto">
+                    <h2 className="text-xl font-bold text-slate-700 mb-5">快捷服务</h2>
+                    <div className="grid grid-cols-3 gap-5">
+                      <button onClick={() => setActiveView(AppView.EMERGENCY_RESPONSE)} className="bg-gradient-to-br from-red-500 to-red-600 rounded-2xl p-8 text-white shadow-lg hover:shadow-xl transition-shadow">
+                        <Siren size={40} className="mb-4" />
+                        <p className="font-bold text-xl">应急救援</p>
+                        <p className="text-sm text-white/80 mt-2">紧急情况一键求助</p>
+                      </button>
+                      <button onClick={() => setActiveView(AppView.HEALTH_RISK)} className="bg-gradient-to-br from-primary to-emerald-500 rounded-2xl p-8 text-white shadow-lg hover:shadow-xl transition-shadow">
+                        <Activity size={40} className="mb-4" />
+                        <p className="font-bold text-xl">健康风险热力图</p>
+                        <p className="text-sm text-white/80 mt-2">查看区域健康风险</p>
+                      </button>
+                      <button onClick={() => setActiveView(AppView.ACCESSIBILITY)} className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-8 text-white shadow-lg hover:shadow-xl transition-shadow">
+                        <Accessibility size={40} className="mb-4" />
+                        <p className="font-bold text-xl">无障碍出行</p>
+                        <p className="text-sm text-white/80 mt-2">无障碍设施导航</p>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 右侧列 */}
+                <div className="flex flex-col">
+                  {/* 社区公告栏 */}
+                  <div className="mb-6 flex-1">
+                    <div className="flex items-center justify-between mb-5">
+                      <h2 className="text-xl font-bold text-slate-700">社区公告栏</h2>
+                      <button onClick={() => setActiveView(AppView.NOTIFICATIONS)} className="text-sm text-primary">查看全部</button>
+                    </div>
+                    <div className="bg-white rounded-2xl p-6 shadow-sm">
+                      <div className="space-y-4">
+                        {notifications.slice(0, 3).map(notif => (
+                          <div key={notif.id} className={`p-4 rounded-lg border-l-2 ${notif.type === 'danger' ? 'border-red-500 bg-red-50' : notif.type === 'warning' ? 'border-orange-500 bg-orange-50' : notif.type === 'success' ? 'border-emerald-500 bg-emerald-50' : 'border-primary bg-primary/5'}`}>
+                            <p className="text-sm font-bold">{notif.title}</p>
+                            <p className="text-xs text-slate-500 mt-1">{notif.content}</p>
+                            <p className="text-[10px] text-slate-400 mt-1">{notif.time}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 一键求助按钮 */}
+                  <div>
+                    <button onClick={() => { const incidentTypes = ['紧急求助', '检测到摔倒', '健康异常', '突发晕倒']; const names = ['张先生', '李女士', '王大爷', '刘阿姨', '陈同学', '赵先生', '孙女士', '周大爷']; const locations = ['居民区', '商业街', '公园', '超市', '小区门口', '公交站']; let newCoords: [number, number]; let attempts = 0; do { newCoords = [117.177 + Math.random() * 0.015, 39.145 + Math.random() * 0.008] as [number, number]; attempts++; } while (allIncidents.some(inc => Math.abs(inc.coordinates[0] - newCoords[0]) < 0.003 && Math.abs(inc.coordinates[1] - newCoords[1]) < 0.003) && attempts < 50); const type = incidentTypes[Math.floor(Math.random() * incidentTypes.length)]; const name = names[Math.floor(Math.random() * names.length)]; const location = locations[Math.floor(Math.random() * locations.length)]; const distance = (Math.random() * 2).toFixed(1) + '公里'; const newIncident = { id: Date.now().toString(), type, location, resident: name, time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }), status: 'pending', distance, image: '', coordinates: newCoords }; setAllIncidents([newIncident, ...allIncidents]); setSelectedIncident(newIncident); setIsIncidentDismissed(false); setIncidentsCollapsed(false); setActiveView(AppView.EMERGENCY_RESPONSE); }} className="w-full flex items-center justify-center gap-3 bg-red-500 hover:bg-red-600 text-white rounded-2xl p-8 shadow-lg transition-colors">
+                      <Zap size={32} />
+                      <span className="font-bold text-2xl">一键求助</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeView !== AppView.HOME && (
+          <AMapView
             riskAreas={RISK_AREAS}
-            incidents={INCIDENTS}
+            incidents={allIncidents}
             activeView={activeView}
+            activeDataLayer={activeDataLayer}
             selectedRiskArea={selectedRiskArea}
             onSelectRiskArea={setSelectedRiskArea}
             selectedIncident={selectedIncident}
@@ -473,756 +565,568 @@ export default function App() {
             isDispatched={isDispatched}
             zoom={zoom}
           />
+        )}
 
-          {/* Map Controls */}
-          <div className="absolute top-6 right-6 flex flex-col gap-3 z-10">
-            <div className="bg-white/90 backdrop-blur p-2 rounded-xl shadow-lg border border-slate-200 flex flex-col gap-1">
-              <button 
-                onClick={handleZoomIn}
-                className="p-2 hover:bg-slate-100 rounded-lg text-slate-700 transition-colors"
-                title="放大"
-              >
-                <Plus size={20} />
-              </button>
-              <div className="h-px bg-slate-200 mx-1"></div>
-              <button 
-                onClick={handleZoomOut}
-                className="p-2 hover:bg-slate-100 rounded-lg text-slate-700 transition-colors"
-                title="缩小"
-              >
-                <Minus size={20} />
-              </button>
-            </div>
-            <button 
-              onClick={handleLocate}
-              className="bg-white/90 backdrop-blur p-3 rounded-xl shadow-lg border border-slate-200 text-slate-700 hover:bg-slate-100 transition-colors"
-              title="定位我的位置"
-            >
-              <MapPin size={20} />
-            </button>
-            <button 
-              onClick={() => setZoom(1)}
-              className="bg-white/90 backdrop-blur p-3 rounded-xl shadow-lg border border-slate-200 text-slate-700 hover:bg-slate-100 transition-colors"
-              title="重置视图"
-            >
-              <MapIcon size={20} />
-            </button>
-          </div>
+        {activeView !== AppView.HOME && (
+          <button onClick={() => setActiveView(AppView.HOME)} className="absolute top-4 left-4 z-30 flex items-center gap-2 px-4 py-2 bg-white rounded-lg shadow-lg hover:bg-slate-100 transition-colors">
+            <Home size={18} className="text-primary" />
+            <span className="text-sm font-medium text-slate-700">返回首页</span>
+          </button>
+        )}
 
-          {/* Overlays based on active view */}
-          <AnimatePresence>
-            {activeView === AppView.HEALTH_RISK && (
-              <motion.div 
-                key="health-risk-legend"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 20 }}
-                className="absolute bottom-6 left-6 z-10 w-64 bg-white/90 backdrop-blur p-4 rounded-xl shadow-lg border border-slate-200"
-              >
-                <h4 className="text-xs font-bold mb-3">风险强度图例</h4>
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-3 rounded-full bg-gradient-to-r from-yellow-200 via-orange-500 to-red-600"></div>
-                    <div className="flex-1 flex justify-between text-[9px] font-bold text-slate-500 uppercase">
-                      <span>低</span><span>极高</span>
-                    </div>
-                  </div>
-                  <LegendItem color="bg-red-600" label="高活跃爆发期" />
-                  <LegendItem color="bg-orange-500" label="新兴风险区域" />
-                  <LegendItem color="bg-green-500" label="认证安全区" />
-                </div>
-              </motion.div>
-            )}
-
-            {activeView === AppView.HEALTH_RISK && (
-              <motion.div 
-                key="health-risk-path-planning"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="absolute bottom-6 right-6 z-10 w-80 bg-white p-4 rounded-xl shadow-2xl border border-slate-200"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <div className="size-8 bg-primary/20 rounded-lg flex items-center justify-center text-primary">
-                      <Navigation size={20} />
-                    </div>
-                    <h4 className="text-sm font-bold">安全路径规划</h4>
-                  </div>
-                  <button className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
-                </div>
-                <div className="space-y-3">
-                  <div className="p-3 bg-slate-50 rounded-lg border border-dashed border-slate-300">
-                    <div className="flex items-start gap-3">
-                      <Info className="text-slate-400 mt-0.5" size={14} />
-                      <div className="flex-1">
-                        <p className="text-[10px] font-bold uppercase tracking-tight text-slate-500">建议</p>
-                        <p className="text-[11px] leading-relaxed">
-                          避开 <span className="text-red-600 font-bold underline decoration-dotted">市场街</span>，因其人流量大且检测到流感集群。建议使用 <span className="text-green-600 font-bold underline decoration-dotted">自由路径</span> 进行低风险通勤。
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <div className="flex items-center justify-between px-1">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase">安全区导航</span>
-                      <span className="text-[10px] text-primary font-bold">全程 4.2 公里</span>
-                    </div>
-                    <button className="flex items-center gap-3 p-3 bg-primary/5 hover:bg-primary/10 border border-primary/20 rounded-lg transition-colors group">
-                      <div className="size-8 rounded-full bg-white border border-primary/30 flex items-center justify-center">
-                        <Navigation className="text-primary" size={14} />
-                      </div>
-                      <div className="flex-1 text-left">
-                        <p className="text-xs font-bold">开始安全导航</p>
-                        <p className="text-[10px] text-slate-500">规划避开红色区域的路线</p>
-                      </div>
-                      <ChevronRight className="text-slate-400 group-hover:text-primary transition-colors" size={18} />
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {activeView === AppView.ACCESSIBILITY && (
-              <motion.div 
-                key="accessibility-voice-guide"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="absolute top-6 left-6 w-80 bg-white/95 backdrop-blur-md p-4 rounded-xl shadow-2xl border border-slate-200 z-10"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="text-sm font-bold">语音引导</h4>
-                  <span className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full">直播</span>
-                </div>
-                <div className="space-y-3 mb-6">
-                  <div className="relative pl-4 border-l-2 border-primary">
-                    <p className="text-[11px] font-bold">"Approaching East Gate Ramp. Keep straight for 20 meters."</p>
-                    <p className="text-[9px] text-slate-400 mt-1 uppercase font-black tracking-widest">2s ago</p>
-                  </div>
-                  <div className="relative pl-4 border-l-2 border-slate-300">
-                    <p className="text-[11px] text-slate-500 italic">"Obstacle detected in West Path. Rerouting."</p>
-                    <p className="text-[9px] text-slate-400 mt-1 uppercase font-black tracking-widest">5m ago</p>
-                  </div>
-                </div>
-                <div className="border-t border-slate-100 pt-4">
-                  <h5 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">语音设置</h5>
-                  <div className="flex items-center justify-between p-2 bg-slate-50 rounded-lg">
-                    <span className="text-[10px] font-bold">触感反馈</span>
-                    <div className="size-6 flex items-center justify-center bg-green-500 text-white rounded-full scale-75">
-                      <CheckCircle2 size={14} />
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {activeView === AppView.ACCESSIBILITY && (
-              <motion.div 
-                key="accessibility-help-desk"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 20 }}
-                className="absolute bottom-6 left-6 right-6 lg:left-1/2 lg:-translate-x-1/2 lg:w-3/4 max-w-4xl z-20"
-              >
-                <div className="overflow-hidden rounded-2xl bg-white shadow-2xl border-l-8 border-primary flex flex-col md:flex-row">
-                  <div className="flex-1 p-6 flex flex-col md:flex-row items-center justify-between gap-4">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <Info className="text-primary" size={16} />
-                        <p className="text-xs font-bold text-primary uppercase tracking-widest">帮助台</p>
-                      </div>
-                      <h3 className="text-xl font-bold text-slate-900 leading-tight">在当前位置需要帮助吗？</h3>
-                    </div>
-                    <button className="px-8 py-3 rounded-lg bg-primary text-white font-bold shadow-lg shadow-primary/30 hover:bg-primary/90 transition-all flex items-center gap-2">
-                      <User size={20} /> 请求协助
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {/* 提示：点击地图上的红色标记 */}
-            {activeView === AppView.EMERGENCY_RESPONSE && !selectedIncident && !isIncidentDismissed && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="absolute bottom-6 right-6 z-30 w-[320px] bg-white/90 backdrop-blur rounded-2xl shadow-lg border border-slate-200 p-6"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="size-10 bg-red-100 rounded-xl flex items-center justify-center text-red-600">
-                    <MapPin size={20} />
-                  </div>
+        {activeView === AppView.EMERGENCY_RESPONSE && !isIncidentDismissed && selectedIncident && !isDispatched && (
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="absolute bottom-4 right-4 z-30 w-80 bg-white rounded-2xl shadow-xl p-4">
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="size-8 bg-red-50 rounded-lg flex items-center text-red-600"><Siren size={18} /></div>
                   <div>
-                    <p className="text-sm font-bold text-slate-900">等待响应</p>
-                    <p className="text-xs text-slate-500">点击地图上的红色标记查看紧急事件</p>
+                    <span className="text-[10px] text-red-500 font-bold">紧急警报</span>
+                    <p className="font-bold">{selectedIncident.type}</p>
                   </div>
                 </div>
-              </motion.div>
-            )}
+                <div className="text-sm mb-3">
+                  <p>位置: {selectedIncident.location}</p>
+                  <p>居民: {selectedIncident.resident}</p>
+                  <p>距离: {selectedIncident.distance}</p>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => { setIsIncidentDismissed(true); setSelectedIncident(null); }} className="flex-1 py-2 border rounded-lg text-sm">忽略</button>
+                  <button onClick={() => setIsDispatched(true)} className="flex-1 py-2 bg-primary text-white rounded-lg text-sm">派遣急救</button>
+                </div>
+                <button onClick={() => setShowNotificationModal(true)} className="w-full mt-2 py-2 border border-primary text-primary rounded-lg text-sm flex items-center justify-center gap-1 hover:bg-primary/5">
+                  <BellPlus size={14} /> 添加新通知
+                </button>
+              </div>
+            </motion.div>
+          )}
 
-            {activeView === AppView.EMERGENCY_RESPONSE && selectedIncident && !isIncidentDismissed && (
-              <AnimatePresence mode="wait">
-                {!isDispatched ? (
-                  <motion.div
-                    key="emergency-response-incident-card"
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.5, x: 50, y: 50 }}
-                    className="absolute bottom-6 right-6 z-30 w-[420px] bg-white rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] border border-slate-100 overflow-hidden"
-                  >
-                    <div className="p-8">
-                      <div className="flex items-center justify-between mb-6">
-                        <div className="flex items-center gap-3">
-                          <div className="size-12 bg-red-50 rounded-2xl flex items-center justify-center text-red-600 relative">
-                            <Siren size={28} className="animate-pulse" />
-                            <div className="absolute -top-1 -right-1 size-4 bg-red-500 rounded-full border-2 border-white animate-ping"></div>
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="size-2 bg-red-500 rounded-full animate-pulse"></span>
-                              <span className="text-[10px] font-black text-red-500 uppercase tracking-[0.2em]">紧急警报</span>
-                            </div>
-                            <h3 className="text-2xl font-black text-slate-900 tracking-tight">{selectedIncident.type}</h3>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">发生时间</p>
-                          <p className="text-lg font-mono font-black text-slate-900">{selectedIncident.time}</p>
-                        </div>
-                      </div>
+          {activeView === AppView.EMERGENCY_RESPONSE && isDispatched && (
+            <motion.div initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} className="absolute bottom-6 right-6 z-30">
+              <div className="relative w-36 h-36 mx-auto">
+                {/* 外圈波纹动画 */}
+                <div className="absolute inset-0 rounded-full bg-emerald-400 opacity-30 animate-ping"></div>
+                <div className="absolute inset-2 rounded-full bg-emerald-400 opacity-20 animate-ping animation-delay-200"></div>
+                {/* 主圆形 */}
+                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-[0_8px_30px_rgba(16,185,129,0.5)] flex flex-col items-center justify-center">
+                  {/* 内圈光晕 */}
+                  <div className="absolute inset-0 rounded-full bg-white/10"></div>
+                  <div className="relative z-10 flex flex-col items-center">
+                    <Siren size={28} className="text-white animate-bounce mb-1" />
+                    <p className="text-xs font-bold text-white/90 tracking-wider">救援中</p>
+                    <p className="text-xl font-black text-white mt-1">{Math.floor(countdown / 60)}分 {countdown % 60}秒</p>
+                  </div>
+                  {/* 底部呼吸灯 */}
+                  <div className="absolute bottom-3 flex gap-1">
+                    <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></div>
+                    <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse animation-delay-200"></div>
+                    <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse animation-delay-400"></div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
 
-                      <div className="space-y-6">
-                        <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100">
-                          <div className="grid grid-cols-2 gap-6">
-                            <div>
-                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">位置</p>
-                              <p className="text-sm font-bold text-slate-900 leading-tight">{selectedIncident.location}</p>
-                            </div>
-                            <div>
-                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">居民</p>
-                              <div className="flex items-center gap-2">
-                                <div className="size-5 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary">JD</div>
-                                <p className="text-sm font-bold text-slate-900">{selectedIncident.resident}</p>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
+          {activeView === AppView.EMERGENCY_RESPONSE && selectedStat && (
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 w-96 bg-white rounded-2xl shadow-2xl p-4">
+              <button onClick={() => setSelectedStat(null)} className="absolute top-3 right-3 p-1 rounded-full hover:bg-slate-100 transition-colors">
+                <X size={18} className="text-slate-400" />
+              </button>
 
-                        <div className="flex items-center justify-between px-2">
-                          <div className="flex items-center gap-4">
-                            <div className="flex flex-col">
-                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">响应级别</span>
-                              <span className="text-xs font-black text-slate-900">EMS Level 1</span>
-                            </div>
-                            <div className="w-px h-8 bg-slate-200"></div>
-                            <div className="flex flex-col">
-                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">距离</span>
-                              <span className="text-xs font-black text-slate-900">{selectedIncident.distance}</span>
-                            </div>
-                          </div>
-                          <div className="flex -space-x-2">
-                            {[1, 2, 3].map(i => (
-                              <div key={i} className="size-8 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center overflow-hidden">
-                                <img src={`https://picsum.photos/seed/avatar${i}/100/100`} alt="Avatar" referrerPolicy="no-referrer" />
-                              </div>
+              <div className="flex items-center gap-2 mb-2">
+                {selectedStat === 'responseTime' && <Timer size={18} className="text-blue-600" />}
+                {selectedStat === 'activeAlerts' && <AlertTriangle size={18} className="text-red-600" />}
+                {selectedStat === 'healthIndex' && <Heart size={18} className="text-emerald-600" />}
+                <h3 className="text-sm font-bold">{STATS_DATA[selectedStat].title}</h3>
+              </div>
+
+              <p className="text-2xl font-bold mb-2">
+                <span className={selectedStat === 'activeAlerts' ? 'text-red-600' : selectedStat === 'healthIndex' ? 'text-emerald-600' : 'text-blue-600'}>
+                  {STATS_DATA[selectedStat].value}
+                </span>
+              </p>
+
+              {renderLineChart(selectedStat)}
+            </motion.div>
+          )}
+
+          {activeView === AppView.HEALTH_SUPPORT && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 z-50 bg-white overflow-y-auto">
+              <div className="sticky top-0 bg-white border-b border-slate-200 p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <button onClick={() => setActiveView(AppView.HEALTH_RISK)} className="flex items-center gap-2 text-slate-600">
+                    <ChevronRight size={18} className="rotate-180" />
+                    <span className="text-sm">返回</span>
+                  </button>
+                  <h2 className="text-lg font-bold">健康支持</h2>
+                  <button onClick={() => setShowHelpModal(true)} className="p-2 rounded-lg hover:bg-slate-100">
+                    <Info size={20} className="text-slate-400" />
+                  </button>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => setHelpTab('form')} className={`flex-1 py-2 rounded-lg text-sm font-medium ${helpTab === 'form' ? 'bg-primary text-white' : 'bg-slate-100 text-slate-600'}`}>申请表单</button>
+                  <button onClick={() => setHelpTab('help')} className={`flex-1 py-2 rounded-lg text-sm font-medium ${helpTab === 'help' ? 'bg-primary text-white' : 'bg-slate-100 text-slate-600'}`}>帮助信息</button>
+                  <button onClick={() => setHelpTab('faq')} className={`flex-1 py-2 rounded-lg text-sm font-medium ${helpTab === 'faq' ? 'bg-primary text-white' : 'bg-slate-100 text-slate-600'}`}>常见问题</button>
+                </div>
+              </div>
+
+              <div className="p-4">
+                {helpTab === 'form' && (
+                  <div className="space-y-4">
+                    <div className="bg-white rounded-xl border border-slate-200 p-4">
+                      <h3 className="text-sm font-bold mb-3">申请检测包</h3>
+                      <div className="space-y-3">
+                        <div>
+                          <label className="text-xs text-slate-500">姓名</label>
+                          <input type="text" placeholder="请输入姓名" className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-sm" />
+                        </div>
+                        <div>
+                          <label className="text-xs text-slate-500">联系电话</label>
+                          <input type="tel" placeholder="请输入联系电话" className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-sm" />
+                        </div>
+                        <div>
+                          <label className="text-xs text-slate-500">选择症状（可多选）</label>
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            {['发热', '咳嗽', '乏力', '头痛', '咽痛', '腹泻'].map(symptom => (
+                              <button key={symptom} className="px-3 py-1 border border-slate-200 rounded-full text-xs">{symptom}</button>
                             ))}
                           </div>
                         </div>
+                        <div>
+                          <label className="text-xs text-slate-500">详细描述</label>
+                          <textarea placeholder="请描述您的症状..." className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-sm" rows={3} />
+                        </div>
+                        <button className="w-full py-2 bg-primary text-white rounded-lg text-sm font-medium">提交申请</button>
+                      </div>
+                    </div>
 
-                        <div className="flex gap-3">
-                          <button
-                            onClick={() => {
-                              setIsIncidentDismissed(true);
-                              setSelectedIncident(null);
-                            }}
-                            className="flex-1 py-4 border border-slate-200 rounded-2xl text-sm font-bold text-slate-500 hover:bg-slate-50 transition-colors"
-                          >
-                            忽略
-                          </button>
-                          <button
-                            onClick={() => setIsDispatched(true)}
-                            className="flex-[2] py-4 bg-primary text-white rounded-2xl text-sm font-black flex items-center justify-center gap-3 shadow-xl shadow-primary/30 hover:bg-primary/90 active:scale-95 transition-all"
-                          >
-                            <Siren size={20} />
-                            派遣急救
-                          </button>
+                    <div className="bg-white rounded-xl border border-slate-200 p-4">
+                      <h3 className="text-sm font-bold mb-3">快速联系</h3>
+                      <div className="grid grid-cols-2 gap-3">
+                        <button onClick={() => setShowHelpModal(true)} className="p-3 bg-blue-50 rounded-lg text-center">
+                          <Phone size={20} className="mx-auto text-blue-600 mb-1" />
+                          <span className="text-xs text-blue-600">联系家庭医生</span>
+                        </button>
+                        <button onClick={() => setShowHelpModal(true)} className="p-3 bg-green-50 rounded-lg text-center">
+                          <Activity size={20} className="mx-auto text-green-600 mb-1" />
+                          <span className="text-xs text-green-600">在线问诊</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {helpTab === 'help' && (
+                  <div className="space-y-4">
+                    <div className="bg-red-50 rounded-xl border border-red-100 p-4">
+                      <h3 className="text-sm font-bold text-red-600 mb-3">紧急联系</h3>
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-slate-600">急救电话</span>
+                          <a href="tel:120" className="text-lg font-bold text-red-600">120</a>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-slate-600">报警电话</span>
+                          <a href="tel:110" className="text-lg font-bold text-red-600">110</a>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-slate-600">服务热线</span>
+                          <a href="tel:400-888-9999" className="text-lg font-bold text-primary">400-888-9999</a>
                         </div>
                       </div>
                     </div>
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    key="emergency-response-dispatched-badge"
-                    initial={{ opacity: 0, scale: 0.5, x: 50, y: 50 }}
-                    animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.5 }}
-                    className="absolute bottom-6 right-6 z-30 size-32 bg-emerald-500 rounded-full shadow-[0_10px_30px_rgba(16,185,129,0.4)] flex flex-col items-center justify-center text-white border-4 border-white cursor-pointer hover:scale-105 transition-transform"
-                    onClick={() => setIsDispatched(false)}
-                  >
-                    <div className="relative">
-                      <Siren size={28} className="animate-bounce" />
-                      <div className="absolute -top-1 -right-1 size-3 bg-red-500 rounded-full border border-white animate-ping"></div>
-                    </div>
-                    <span className="text-[10px] font-black uppercase tracking-widest mt-1">救援中</span>
-                    <div className="flex flex-col items-center -mt-0.5">
-                      <span className="text-[11px] font-black">{Math.floor(countdown / 60)}分 {countdown % 60}秒</span>
-                      <span className="text-[8px] font-bold opacity-80 uppercase tracking-tighter">预计到达</span>
-                    </div>
-                    <div className="mt-1 flex items-center gap-1">
-                      <div className="size-1 bg-white rounded-full animate-pulse"></div>
-                      <div className="size-1 bg-white rounded-full animate-pulse [animation-delay:0.2s]"></div>
-                      <div className="size-1 bg-white rounded-full animate-pulse [animation-delay:0.4s]"></div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            )}
 
-            {activeView === AppView.NOTIFICATIONS && (
-              <motion.div
-                key="notifications-view"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="absolute inset-0 z-30 bg-white overflow-y-auto p-8"
-              >
-                <div className="max-w-4xl mx-auto">
-                  <div className="flex items-center justify-between mb-8">
-                    <div>
-                      <h1 className="text-3xl font-bold text-slate-900">社区详细通知</h1>
-                      <p className="text-slate-500 mt-1">查看社区最新的健康公告、安全警报和公共服务信息。</p>
+                    <div className="bg-white rounded-xl border border-slate-200 p-4">
+                      <h3 className="text-sm font-bold mb-3">服务信息</h3>
+                      <div className="space-y-2 text-sm">
+                        <p className="text-slate-600"><Clock size={14} className="inline mr-2" />{HELP_INFO.serviceHours}</p>
+                        <p className="text-slate-600"><MapPin size={14} className="inline mr-2" />{HELP_INFO.address}</p>
+                      </div>
                     </div>
-                    <button 
-                      onClick={() => setActiveView(AppView.HEALTH_RISK)}
-                      className="p-2 hover:bg-slate-100 rounded-full transition-colors"
-                    >
-                      <X size={24} className="text-slate-400" />
-                    </button>
                   </div>
+                )}
 
-                  <div className="grid gap-6">
-                    {notifications.map((notif) => (
-                      <motion.div
-                        key={notif.id}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className={`bg-white border border-slate-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all ${
-                          notif.isRead ? 'bg-slate-50/50 opacity-75' : ''
-                        }`}
-                      >
-                        <div className="flex items-start justify-between mb-4">
-                          <div className="flex items-center gap-3">
-                            <div className={`p-2 rounded-lg transition-colors ${
-                              notif.isRead ? 'bg-slate-200 text-slate-400' : (
-                                notif.type === 'danger' ? 'bg-red-100 text-red-600' : 
-                                notif.type === 'warning' ? 'bg-orange-100 text-orange-600' : 
-                                notif.type === 'success' ? 'bg-emerald-100 text-emerald-600' : 'bg-primary/10 text-primary'
-                              )
-                            }`}>
-                              {notif.type === 'danger' ? <AlertTriangle size={20} /> : 
-                               notif.type === 'warning' ? <Info size={20} /> : 
-                               notif.type === 'success' ? <CheckCircle2 size={20} /> : <Bell size={20} />}
-                            </div>
-                            <div>
-                              <h3 className={`text-lg font-bold transition-all ${notif.isRead ? 'text-slate-400 line-through' : 'text-slate-900'}`}>{notif.title}</h3>
-                              <span className="text-xs text-slate-400 font-medium">{notif.time}</span>
-                            </div>
-                          </div>
-                          <button className="text-slate-300 hover:text-slate-500">
-                            <MoreVertical size={20} />
-                          </button>
-                        </div>
-                        <p className={`leading-relaxed mb-4 transition-all ${notif.isRead ? 'text-slate-300' : 'text-slate-600'}`}>
-                          {notif.content} 这里是详细的通知内容描述。为了保障社区居民的健康安全，我们建议大家密切关注相关区域的动态，并遵守公共卫生准则。如果您有任何疑问或需要帮助，请随时联系社区健康支持中心。
-                        </p>
-                        <div className="flex items-center gap-4">
-                          <button className={`text-xs font-bold hover:underline ${notif.isRead ? 'text-slate-300' : 'text-primary'}`}>查看详情</button>
-                          <button 
-                            onClick={() => {
-                              setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, isRead: !n.isRead } : n));
-                            }}
-                            className={`text-xs font-bold transition-colors ${notif.isRead ? 'text-slate-300 hover:text-slate-400' : 'text-slate-400 hover:text-slate-600'}`}
-                          >
-                            {notif.isRead ? '标记为未读' : '标记为已读'}
-                          </button>
-                        </div>
-                      </motion.div>
+                {helpTab === 'faq' && (
+                  <div className="space-y-3">
+                    {FAQ_DATA.map(faq => (
+                      <div key={faq.id} className="bg-white rounded-xl border border-slate-200 p-4">
+                        <h4 className="text-sm font-bold text-slate-800 mb-2">{faq.question}</h4>
+                        <p className="text-xs text-slate-500">{faq.answer}</p>
+                      </div>
                     ))}
                   </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+
+          {activeView === AppView.NOTIFICATIONS && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 z-50 bg-white overflow-y-auto">
+              <div className="sticky top-0 bg-white border-b border-slate-200 p-4">
+                <div className="flex items-center justify-between">
+                  <button onClick={() => setActiveView(AppView.HEALTH_RISK)} className="flex items-center gap-2 text-slate-600">
+                    <ChevronRight size={18} className="rotate-180" />
+                    <span className="text-sm">返回</span>
+                  </button>
+                  <h2 className="text-lg font-bold">社区通知</h2>
+                  <button onClick={() => setNotifications(notifications.map(n => ({ ...n, isRead: true })))} className="text-sm text-primary font-medium">
+                    全部已读
+                  </button>
                 </div>
-              </motion.div>
-            )}
+              </div>
 
-            {/* Risk Area Detail Overlay */}
-            <AnimatePresence key="risk-area-overlay-presence">
-              {selectedRiskArea && (
-                <motion.div
-                  key="risk-area-overlay-backdrop"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="absolute inset-0 z-40 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-8"
-                  onClick={() => setSelectedRiskArea(null)}
-                >
-                  <motion.div
-                    key="risk-area-overlay-card"
-                    initial={{ scale: 0.9, opacity: 0, y: 20 }}
-                    animate={{ scale: 1, opacity: 1, y: 0 }}
-                    exit={{ scale: 0.9, opacity: 0, y: 20 }}
-                    className="bg-white w-full max-w-2xl rounded-[32px] shadow-2xl border border-slate-200 overflow-hidden"
-                    onClick={(e) => e.stopPropagation()}
+              <div className="p-4 space-y-3">
+                {notifications.filter(n => !n.isRead).length > 0 && (
+                  <div className="mb-4">
+                    <p className="text-xs font-bold text-slate-500 mb-2">{notifications.filter(n => !n.isRead).length} 条未读通知</p>
+                  </div>
+                )}
+                {notifications.map((notif) => (
+                  <div
+                    key={notif.id}
+                    onClick={() => setNotifications(notifications.map(n => n.id === notif.id ? { ...n, isRead: true } : n))}
+                    className={`p-4 rounded-xl border-l-4 cursor-pointer transition-all ${notif.isRead ? 'bg-slate-50 border-slate-200 opacity-60' : notif.type === 'danger' ? 'bg-red-50 border-red-500' : notif.type === 'warning' ? 'bg-orange-50 border-orange-500' : notif.type === 'success' ? 'bg-emerald-50 border-emerald-500' : 'bg-primary/5 border-primary'}`}
                   >
-                    <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                      <div className="flex items-center gap-4">
-                        <div className={`size-12 rounded-2xl flex items-center justify-center text-white shadow-lg ${
-                          selectedRiskArea.riskLevel === '极高' ? 'bg-red-600 shadow-red-200' : 
-                          selectedRiskArea.riskLevel === '中等' ? 'bg-orange-500 shadow-orange-200' : 'bg-emerald-500 shadow-emerald-200'
-                        }`}>
-                          <AlertTriangle size={24} />
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          {!notif.isRead && <span className="w-2 h-2 bg-red-500 rounded-full"></span>}
+                          <p className="text-sm font-bold">{notif.title}</p>
                         </div>
-                        <div>
-                          <h2 className="text-2xl font-black text-slate-900 tracking-tight">{selectedRiskArea.name}</h2>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest ${
-                              selectedRiskArea.riskLevel === '极高' ? 'bg-red-100 text-red-600' : 
-                              selectedRiskArea.riskLevel === '中等' ? 'bg-orange-100 text-orange-600' : 'bg-emerald-100 text-emerald-600'
-                            }`}>
-                              {selectedRiskArea.riskLevel}风险
-                            </span>
-                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">区域代码: AREA-{selectedRiskArea.id}</span>
-                          </div>
-                        </div>
+                        <p className="text-xs text-slate-500 mt-1">{notif.content}</p>
+                        <p className="text-[9px] text-slate-400 mt-2">{notif.time}</p>
                       </div>
-                      <button 
-                        onClick={() => setSelectedRiskArea(null)}
-                        className="p-3 hover:bg-slate-100 rounded-full transition-colors text-slate-400"
-                      >
-                        <X size={24} />
-                      </button>
+                      {!notif.isRead && <CheckCircle2 size={16} className="text-primary" />}
                     </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
 
-                    <div className="p-8">
-                      <div className="grid grid-cols-3 gap-6 mb-8">
-                        <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100">
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">活跃病例</p>
-                          <div className="flex items-baseline gap-2">
-                            <p className="text-2xl font-black text-slate-900">{selectedRiskArea.activeCases}</p>
-                            <span className={`text-[10px] font-bold ${
-                              selectedRiskArea.trend === 'up' ? 'text-red-500' : 
-                              selectedRiskArea.trend === 'down' ? 'text-emerald-500' : 'text-slate-400'
-                            }`}>
-                              {selectedRiskArea.trend === 'up' ? '↑' : selectedRiskArea.trend === 'down' ? '↓' : '→'}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100">
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">风险指数</p>
-                          <p className="text-2xl font-black text-slate-900">{selectedRiskArea.percentage}%</p>
-                        </div>
-                        <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100">
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">覆盖人口</p>
-                          <p className="text-2xl font-black text-slate-900">{selectedRiskArea.population}</p>
-                        </div>
-                      </div>
-
-                      <div className="space-y-6">
-                        <div>
-                          <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">风险分析与建议</h3>
-                          <p className="text-sm text-slate-600 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-100 italic">
-                            "{selectedRiskArea.description}"
-                          </p>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                          <button className="py-4 bg-primary text-white rounded-2xl text-sm font-black shadow-xl shadow-primary/20 hover:bg-primary/90 transition-all active:scale-95">
-                            查看详细趋势图
-                          </button>
-                          <button className="py-4 bg-white text-slate-900 border border-slate-200 rounded-2xl text-sm font-black hover:bg-slate-50 transition-all">
-                            下载区域报告
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="px-8 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="size-2 bg-emerald-500 rounded-full animate-pulse"></div>
-                        <span className="text-[10px] font-bold text-slate-500">数据实时同步中</span>
-                      </div>
-                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">最后更新: {new Date().toLocaleTimeString()}</span>
-                    </div>
-                  </motion.div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Stat Detail Overlay */}
-            <AnimatePresence key="stat-detail-overlay-presence">
-              {selectedStat && (
-                <motion.div
-                  key="stat-detail-overlay-backdrop"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="absolute inset-0 z-40 bg-white/80 backdrop-blur-md flex items-center justify-center p-8"
-                >
-                  <motion.div
-                    key="stat-detail-overlay-card"
-                    initial={{ scale: 0.9, opacity: 0, y: 20 }}
-                    animate={{ scale: 1, opacity: 1, y: 0 }}
-                    exit={{ scale: 0.9, opacity: 0, y: 20 }}
-                    className="bg-white w-full max-w-4xl rounded-3xl shadow-2xl border border-slate-200 overflow-hidden"
-                  >
-                    <div className="p-8 border-b border-slate-100 flex items-center justify-between">
-                      <div>
-                        <h2 className="text-2xl font-bold text-slate-900">{statConfig[selectedStat].title}统计</h2>
-                        <div className="flex gap-2 mt-4">
-                          <button 
-                            onClick={() => setTimeRange('week')}
-                            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors ${timeRange === 'week' ? 'bg-primary text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
-                          >
-                            本周
-                          </button>
-                          <button 
-                            onClick={() => setTimeRange('month')}
-                            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors ${timeRange === 'month' ? 'bg-primary text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
-                          >
-                            本月
-                          </button>
-                        </div>
-                      </div>
-                      <button 
-                        onClick={() => setSelectedStat(null)}
-                        className="p-2 hover:bg-slate-100 rounded-full transition-colors"
-                      >
-                        <X size={24} className="text-slate-400" />
-                      </button>
-                    </div>
-
-                    <div className="p-8 h-[400px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        {selectedStat === 'responseTime' ? (
-                          <AreaChart data={chartData}>
-                            <defs>
-                              <linearGradient id="colorRes" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor={statConfig[selectedStat].color} stopOpacity={0.3}/>
-                                <stop offset="95%" stopColor={statConfig[selectedStat].color} stopOpacity={0}/>
-                              </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} />
-                            <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} unit={statConfig[selectedStat].unit} />
-                            <Tooltip 
-                              contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                              itemStyle={{ fontWeight: 'bold' }}
-                            />
-                            <Area type="monotone" dataKey={statConfig[selectedStat].key} stroke={statConfig[selectedStat].color} strokeWidth={3} fillOpacity={1} fill="url(#colorRes)" />
-                          </AreaChart>
-                        ) : selectedStat === 'alerts' ? (
-                          <BarChart data={chartData}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} />
-                            <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} unit={statConfig[selectedStat].unit} />
-                            <Tooltip 
-                              cursor={{ fill: '#f8fafc' }}
-                              contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                            />
-                            <Bar dataKey={statConfig[selectedStat].key} fill={statConfig[selectedStat].color} radius={[4, 4, 0, 0]} />
-                          </BarChart>
-                        ) : (
-                          <LineChart data={chartData}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} />
-                            <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} unit={statConfig[selectedStat].unit} />
-                            <Tooltip 
-                              contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                            />
-                            <Line type="monotone" dataKey={statConfig[selectedStat].key} stroke={statConfig[selectedStat].color} strokeWidth={3} dot={{ r: 4, fill: statConfig[selectedStat].color, strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
-                          </LineChart>
-                        )}
-                      </ResponsiveContainer>
-                    </div>
-
-                    <div className="p-8 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
-                      <div className="flex gap-8">
-                        <div>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase">最高值</p>
-                          <p className="text-xl font-bold text-slate-900">
-                            {Math.max(...chartData.map(d => d[statConfig[selectedStat].key as keyof typeof d] as number)).toFixed(1)}
-                            <span className="text-xs ml-1">{statConfig[selectedStat].unit}</span>
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase">平均值</p>
-                          <p className="text-xl font-bold text-slate-900">
-                            {(chartData.reduce((acc, d) => acc + (d[statConfig[selectedStat].key as keyof typeof d] as number), 0) / chartData.length).toFixed(1)}
-                            <span className="text-xs ml-1">{statConfig[selectedStat].unit}</span>
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xs text-slate-500">数据最后更新于: {new Date().toLocaleTimeString()}</p>
-                      </div>
-                    </div>
-                  </motion.div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {activeView === AppView.HEALTH_SUPPORT && (
-              <motion.div
-                key="health-support-view"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="absolute inset-0 z-30 bg-white overflow-y-auto p-8"
-              >
-                <div className="max-w-4xl mx-auto">
-                  <div className="flex items-center justify-between mb-8">
+          {showHelpModal && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 z-[60] bg-black/50 flex items-center justify-center" onClick={() => setShowHelpModal(false)}>
+              <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-white rounded-2xl p-6 w-80 mx-4" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold">联系我们</h3>
+                  <button onClick={() => setShowHelpModal(false)}><X size={20} className="text-slate-400" /></button>
+                </div>
+                <div className="space-y-3">
+                  <a href="tel:120" className="flex items-center gap-3 p-3 bg-red-50 rounded-lg">
+                    <Siren size={20} className="text-red-600" />
                     <div>
-                      <h1 className="text-3xl font-bold text-slate-900">健康支持与自测</h1>
-                      <p className="text-slate-500 mt-1">了解最新症状并进行自我健康评估。</p>
+                      <p className="text-sm font-bold text-red-600">急救电话</p>
+                      <p className="text-xs text-slate-500">24小时 available</p>
                     </div>
-                    <button 
-                      onClick={() => setActiveView(AppView.HEALTH_RISK)}
-                      className="p-2 hover:bg-slate-100 rounded-full transition-colors"
-                    >
-                      <X size={24} className="text-slate-400" />
-                    </button>
+                  </a>
+                  <a href="tel:400-888-9999" className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
+                    <Phone size={20} className="text-blue-600" />
+                    <div>
+                      <p className="text-sm font-bold text-blue-600">服务热线</p>
+                      <p className="text-xs text-slate-500">{HELP_INFO.serviceHours}</p>
+                    </div>
+                  </a>
+                  <a href="tel:110" className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
+                    <ShieldCheck size={20} className="text-slate-600" />
+                    <div>
+                      <p className="text-sm font-bold text-slate-600">报警电话</p>
+                      <p className="text-xs text-slate-500">24小时 available</p>
+                    </div>
+                  </a>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+
+          {/* 添加新通知弹窗 */}
+          {showNotificationModal && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 z-[60] bg-black/50 flex items-center justify-center" onClick={() => setShowNotificationModal(false)}>
+              <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-white rounded-2xl p-6 w-96 mx-4" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold">添加新通知</h3>
+                  <button onClick={() => setShowNotificationModal(false)}><X size={20} className="text-slate-400" /></button>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 mb-1 block">通知标题</label>
+                    <input type="text" value={newNotification.title} onChange={e => setNewNotification({ ...newNotification, title: e.target.value })} placeholder="请输入通知标题" className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 mb-1 block">通知类型</label>
+                    <div className="flex gap-2">
+                      {(['info', 'warning', 'danger', 'success'] as const).map(type => (
+                        <button key={type} onClick={() => setNewNotification({ ...newNotification, type })} className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors ${newNotification.type === type ? (type === 'info' ? 'bg-primary text-white' : type === 'warning' ? 'bg-orange-500 text-white' : type === 'danger' ? 'bg-red-500 text-white' : 'bg-emerald-500 text-white') : 'bg-slate-100 text-slate-600'}`}>
+                          {type === 'info' ? '通知' : type === 'warning' ? '警告' : type === 'danger' ? '紧急' : '成功'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 mb-1 block">通知内容</label>
+                    <textarea value={newNotification.content} onChange={e => setNewNotification({ ...newNotification, content: e.target.value })} placeholder="请输入通知内容" rows={4} className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none" />
+                  </div>
+                  <button onClick={() => { if (newNotification.title && newNotification.content) { const newNotif = { id: Date.now().toString(), ...newNotification, time: '刚刚发布', isRead: false }; setNotifications([newNotif, ...notifications]); setShowNotificationModal(false); setNewNotification({ title: '', content: '', type: 'info' }); } }} disabled={!newNotification.title || !newNotification.content} className="w-full py-2.5 bg-primary text-white rounded-lg text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed">发布通知</button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+
+          {/* 紧急求助热线弹窗 */}
+          {showEmergencyModal && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 z-[60] bg-black/50 flex items-center justify-center" onClick={() => setShowEmergencyModal(false)}>
+              <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-white rounded-2xl p-6 w-80 mx-4" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold">紧急求助热线</h3>
+                  <button onClick={() => setShowEmergencyModal(false)}><X size={20} className="text-slate-400" /></button>
+                </div>
+                <div className="space-y-3">
+                  <a href="tel:120" className="flex items-center gap-3 p-3 bg-red-50 rounded-lg hover:bg-red-100">
+                    <Siren size={20} className="text-red-600" />
+                    <div>
+                      <p className="text-sm font-bold text-red-600">急救电话</p>
+                      <p className="text-xs text-slate-500">24小时 available</p>
+                    </div>
+                  </a>
+                  <a href="tel:110" className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg hover:bg-slate-100">
+                    <ShieldCheck size={20} className="text-slate-600" />
+                    <div>
+                      <p className="text-sm font-bold text-slate-600">报警电话</p>
+                      <p className="text-xs text-slate-500">24小时 available</p>
+                    </div>
+                  </a>
+                  <a href="tel:400-888-9999" className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg hover:bg-blue-100">
+                    <Phone size={20} className="text-blue-600" />
+                    <div>
+                      <p className="text-sm font-bold text-blue-600">服务热线</p>
+                      <p className="text-xs text-slate-500">工作时间: 8:00-20:00</p>
+                    </div>
+                  </a>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+
+          {/* 完整报告弹窗 */}
+          {showReportModal && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 z-[60] bg-black/50 flex items-center justify-center" onClick={() => setShowReportModal(false)}>
+              <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-white rounded-2xl p-6 w-[500px] max-h-[80vh] overflow-y-auto mx-4" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold">社区健康完整报告</h3>
+                  <button onClick={() => setShowReportModal(false)}><X size={20} className="text-slate-400" /></button>
+                </div>
+                <div className="space-y-4">
+                  {/* 社区概况 */}
+                  <div className="bg-slate-50 rounded-xl p-4">
+                    <h4 className="text-sm font-bold text-slate-700 mb-3">社区健康概况</h4>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="text-center">
+                        <p className="text-2xl font-bold text-primary">{RISK_AREAS.length}</p>
+                        <p className="text-xs text-slate-500">风险区域</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-2xl font-bold text-red-500">{allIncidents.length}</p>
+                        <p className="text-xs text-slate-500">待处理事件</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-2xl font-bold text-emerald-500">良好</p>
+                        <p className="text-xs text-slate-500">健康指数</p>
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    {/* Latest Symptoms */}
-                    <section>
-                      <div className="flex items-center gap-2 mb-4">
-                        <Activity className="text-primary" size={20} />
-                        <h2 className="text-xl font-bold text-slate-900">最新关注症状</h2>
-                      </div>
-                      <div className="space-y-3">
-                        {SYMPTOMS.map((symptom, idx) => (
-                          <div key={idx} className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                            <div className="flex items-center justify-between mb-1">
-                              <h3 className="font-bold text-slate-900">{symptom.name}</h3>
-                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
-                                symptom.severity === 'critical' ? 'bg-red-500 text-white' :
-                                symptom.severity === 'high' ? 'bg-red-100 text-red-600' :
-                                symptom.severity === 'medium' ? 'bg-orange-100 text-orange-600' : 'bg-slate-200 text-slate-600'
-                              }`}>
-                                {symptom.severity === 'critical' ? '紧急' : 
-                                 symptom.severity === 'high' ? '高风险' : 
-                                 symptom.severity === 'medium' ? '中等' : '轻微'}
-                              </span>
-                            </div>
-                            <p className="text-xs text-slate-500 leading-relaxed">{symptom.description}</p>
+                  {/* 风险区域详情 */}
+                  <div className="bg-slate-50 rounded-xl p-4">
+                    <h4 className="text-sm font-bold text-slate-700 mb-3">风险区域详情</h4>
+                    <div className="space-y-3">
+                      {RISK_AREAS.map(area => (
+                        <div key={area.id} className="flex items-center justify-between">
+                          <div>
+                            <p className="text-xs font-medium">{area.name}</p>
+                            <p className="text-[10px] text-slate-400">{area.population} 人口 · {area.activeCases} 活跃病例</p>
                           </div>
-                        ))}
-                      </div>
-                    </section>
-
-                    {/* Self-Test Assessment */}
-                    <section>
-                      <div className="flex items-center gap-2 mb-4">
-                        <ShieldCheck className="text-emerald-500" size={20} />
-                        <h2 className="text-xl font-bold text-slate-900">自我检测评估方法</h2>
-                      </div>
-                      <div className="space-y-4">
-                        {SELF_TEST_STEPS.map((step, idx) => (
-                          <div key={idx} className="flex gap-4">
-                            <div className="size-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-sm shrink-0">
-                              {idx + 1}
-                            </div>
-                            <div>
-                              <h3 className="font-bold text-slate-900 mb-1">{step.title}</h3>
-                              <p className="text-xs text-slate-500 leading-relaxed">{step.content}</p>
-                            </div>
-                          </div>
-                        ))}
-                        
-                        <div className="mt-8 p-6 bg-emerald-50 rounded-2xl border border-emerald-100">
-                          <h4 className="font-bold text-emerald-900 mb-2">评估结论建议</h4>
-                          <p className="text-xs text-emerald-700 leading-relaxed mb-4">
-                            如果您出现“紧急”或“高风险”症状，请立即联系社区急救中心或前往最近的医院。轻微症状建议居家观察并保持联系。
-                          </p>
-                          <div className="flex gap-2">
-                            <button className="flex-1 py-2 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700">在线咨询医生</button>
-                            <button className="flex-1 py-2 bg-white text-emerald-600 border border-emerald-200 rounded-lg text-xs font-bold hover:bg-emerald-50">申请检测包</button>
-                          </div>
+                          <span className={`text-[10px] px-2 py-1 rounded ${area.riskLevel === '极高' ? 'bg-red-100 text-red-600' : area.riskLevel === '中等' ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'}`}>
+                            {area.riskLevel} ({area.percentage}%)
+                          </span>
                         </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 响应统计 */}
+                  <div className="bg-slate-50 rounded-xl p-4">
+                    <h4 className="text-sm font-bold text-slate-700 mb-3">应急响应统计</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-xs text-slate-500 mb-1">平均响应时间</p>
+                        <p className="text-lg font-bold text-blue-600">{STATS_DATA.responseTime.value}</p>
                       </div>
-                    </section>
+                      <div>
+                        <p className="text-xs text-slate-500 mb-1">活动警报</p>
+                        <p className="text-lg font-bold text-red-600">{STATS_DATA.activeAlerts.value}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 最近通知 */}
+                  <div className="bg-slate-50 rounded-xl p-4">
+                    <h4 className="text-sm font-bold text-slate-700 mb-3">最近通知</h4>
+                    <div className="space-y-2">
+                      {notifications.slice(0, 3).map(notif => (
+                        <div key={notif.id} className="text-xs">
+                          <p className="font-medium">{notif.title}</p>
+                          <p className="text-slate-400">{notif.time}</p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </motion.div>
-            )}
-          </AnimatePresence>
-        </main>
+            </motion.div>
+          )}
+        </div>
 
-        {/* Right Panel */}
-        <aside className="w-80 bg-white border-l border-slate-200 flex flex-col p-4 gap-4 overflow-y-auto">
-          <div className="flex items-center justify-between mb-2">
+        {activeView !== AppView.HOME && (
+        <aside className="w-80 bg-white border-l border-slate-200 flex flex-col p-4 shrink-0 overflow-y-auto">
+          <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-bold">社区通知</h3>
-            <span className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full">新增</span>
+            <span className="bg-primary/10 text-primary text-[10px] px-2 py-0.5 rounded-full">新增</span>
           </div>
-          <div className="space-y-4">
-            {notifications.map(notif => (
-              <div key={notif.id} className={`relative pl-4 border-l-2 transition-all ${
-                notif.isRead ? 'border-slate-200 opacity-60' : (
-                  notif.type === 'danger' ? 'border-red-500' : 
-                  notif.type === 'warning' ? 'border-orange-500' : 
-                  notif.type === 'success' ? 'border-emerald-500' : 'border-primary'
-                )
-              }`}>
-                <p className={`text-xs font-bold mb-1 ${notif.isRead ? 'text-slate-400' : ''}`}>{notif.title}</p>
-                <p className={`text-[10px] leading-relaxed ${notif.isRead ? 'text-slate-300' : 'text-slate-500'}`}>{notif.content}</p>
-                <p className="text-[9px] text-slate-400 mt-2 italic">{notif.time}</p>
+          <div className="space-y-3">
+            {notifications.map((notif: Notification) => (
+              <div key={notif.id} className={`p-3 rounded-lg border-l-2 ${notif.type === 'danger' ? 'border-red-500 bg-red-50' : notif.type === 'warning' ? 'border-orange-500 bg-orange-50' : notif.type === 'success' ? 'border-emerald-500 bg-emerald-50' : 'border-primary bg-primary/5'}`}>
+                <p className="text-xs font-bold">{notif.title}</p>
+                <p className="text-[10px] text-slate-500 mt-1">{notif.content}</p>
+                <p className="text-[9px] text-slate-400 mt-1">{notif.time}</p>
               </div>
             ))}
           </div>
 
-          <div className="mt-8">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4 px-1">社区健康评分</h4>
-            <div className="bg-slate-50 rounded-2xl p-6 flex flex-col items-center text-center border border-slate-100">
-              <div className="relative size-32 mb-4">
-                <svg className="size-full" viewBox="0 0 36 36">
-                  <path className="stroke-slate-200" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" strokeWidth="3" />
-                  <path className="stroke-orange-500" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" strokeDasharray="64, 100" strokeLinecap="round" strokeWidth="3" />
-                </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-3xl font-bold">64</span>
-                  <span className="text-[9px] font-bold text-slate-400">尚可</span>
-                </div>
+          <div className="mt-auto pt-4 border-t border-slate-100">
+            <button onClick={() => setShowEmergencyModal(true)} className="w-full bg-red-50 rounded-xl p-3 mb-3 border border-red-100 hover:bg-red-100 transition-colors text-left">
+              <div className="flex items-center gap-2 mb-2">
+                <Phone size={14} className="text-red-600" />
+                <span className="text-xs font-bold text-red-600">紧急求助热线</span>
               </div>
-              <p className="text-[11px] text-slate-500">社区健康稳定性较昨日下降 <span className="text-red-500 font-bold">4分</span>。</p>
+              <p className="text-sm font-bold text-slate-800">120 / 110</p>
+              <p className="text-[9px] text-slate-500">24小时 available</p>
+            </button>
+
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              <button onClick={() => setActiveView(AppView.HEALTH_RISK)} className="bg-slate-50 hover:bg-slate-100 rounded-lg p-2 text-center transition-colors">
+                <p className="text-lg font-bold text-primary">{RISK_AREAS.length}</p>
+                <p className="text-[9px] text-slate-400">风险区域</p>
+              </button>
+              <button onClick={() => setActiveView(AppView.EMERGENCY_RESPONSE)} className="bg-slate-50 hover:bg-slate-100 rounded-lg p-2 text-center transition-colors">
+                <p className="text-lg font-bold text-red-500">{allIncidents.length}</p>
+                <p className="text-[9px] text-slate-400">待处理事件</p>
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <button onClick={() => setShowReportModal(true)} className="w-full py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-medium text-slate-600 flex items-center justify-center gap-2">
+                <ShieldCheck size={14} /> 查看完整报告
+              </button>
+              <button onClick={() => setShowNotificationModal(true)} className="w-full py-2 bg-primary/10 hover:bg-primary/20 rounded-lg text-xs font-medium text-primary flex items-center justify-center gap-2">
+                <Plus size={14} /> 添加新通知
+              </button>
             </div>
           </div>
         </aside>
+        )}
       </div>
-    </div>
-  );
-}
 
-function SidebarItem({ icon, label, active, onClick }: { icon: React.ReactNode, label: string, active: boolean, onClick: () => void }) {
-  return (
-    <button 
-      onClick={onClick}
-      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${
-        active 
-          ? 'bg-primary text-white font-medium shadow-lg shadow-primary/20' 
-          : 'text-slate-600 hover:bg-slate-100'
-      }`}
-    >
-      <span className="text-xl">{icon}</span>
-      <span className="text-sm">{label}</span>
-    </button>
-  );
-}
+      {/* 首页搜索结果弹窗 */}
+      {showHomeSearchResults && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowHomeSearchResults(false)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+              <h3 className="font-bold text-slate-800">搜索结果</h3>
+              <button onClick={() => setShowHomeSearchResults(false)} className="p-1 hover:bg-slate-100 rounded">
+                <X size={20} className="text-slate-500" />
+              </button>
+            </div>
+            <div className="max-h-96 overflow-y-auto p-4">
+              {/* 健康档案 */}
+              <div className="mb-4">
+                <h4 className="text-sm font-bold text-slate-700 mb-2">个人健康档案</h4>
+                <div className="bg-slate-50 rounded-lg p-3 space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-xs text-slate-500">心率</span>
+                    <span className="text-xs font-medium">72 bpm</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-xs text-slate-500">今日步数</span>
+                    <span className="text-xs font-medium">8,523 步</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-xs text-slate-500">睡眠质量</span>
+                    <span className="text-xs font-medium">7.5 小时</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-xs text-slate-500">饮水量</span>
+                    <span className="text-xs font-medium">1.8 L</span>
+                  </div>
+                </div>
+              </div>
 
-function LegendItem({ color, label }: { color: string, label: string }) {
-  return (
-    <div className="flex items-center gap-3">
-      <div className={`size-2 rounded-full ${color}`}></div>
-      <span className="text-[10px] text-slate-600">{label}</span>
+              {/* 快捷服务 */}
+              <div>
+                <h4 className="text-sm font-bold text-slate-700 mb-2">快捷服务</h4>
+                <div className="space-y-2">
+                  <button onClick={() => { setShowHomeSearchResults(false); setActiveView(AppView.EMERGENCY_RESPONSE); }} className="w-full flex items-center gap-3 p-3 bg-red-50 rounded-lg hover:bg-red-100">
+                    <Siren size={18} className="text-red-500" />
+                    <span className="text-sm">应急救援</span>
+                  </button>
+                  <button onClick={() => { setShowHomeSearchResults(false); setActiveView(AppView.HEALTH_RISK); }} className="w-full flex items-center gap-3 p-3 bg-emerald-50 rounded-lg hover:bg-emerald-100">
+                    <Activity size={18} className="text-emerald-500" />
+                    <span className="text-sm">健康风险热力图</span>
+                  </button>
+                  <button onClick={() => { setShowHomeSearchResults(false); setActiveView(AppView.ACCESSIBILITY); }} className="w-full flex items-center gap-3 p-3 bg-blue-50 rounded-lg hover:bg-blue-100">
+                    <Accessibility size={18} className="text-blue-500" />
+                    <span className="text-sm">无障碍出行</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 搜索结果弹窗 */}
+      {showSearchResults && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowSearchResults(false)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+              <h3 className="font-bold text-slate-800">搜索结果 ({filteredIncidents.length})</h3>
+              <button onClick={() => setShowSearchResults(false)} className="p-1 hover:bg-slate-100 rounded">
+                <X size={20} className="text-slate-500" />
+              </button>
+            </div>
+            <div className="max-h-96 overflow-y-auto">
+              {filteredIncidents.length > 0 ? (
+                filteredIncidents.map((incident) => (
+                  <button
+                    key={incident.id}
+                    onClick={() => handleSelectIncident(incident)}
+                    className="w-full p-3 text-left border-b border-slate-100 hover:bg-red-50 transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-red-600">{incident.type}</span>
+                      <span className="text-[10px] text-slate-400">{incident.time}</span>
+                    </div>
+                    <p className="text-sm text-slate-700 mt-1">{incident.location}</p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">{incident.resident} · {incident.distance}</p>
+                  </button>
+                ))
+              ) : (
+                <div className="p-8 text-center text-slate-500">
+                  <Search size={40} className="mx-auto mb-2 text-slate-300" />
+                  <p>未找到匹配的急救点</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
