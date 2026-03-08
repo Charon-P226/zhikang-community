@@ -466,12 +466,16 @@ export default function AMapView({
     };
   }, []);
 
+  // 站点分析模式 - 只在进入时加载一次数据
+  useEffect(() => {
+    if (isSiteAnalysisMode) {
+      loadFromLocalStorage();
+    }
+  }, [isSiteAnalysisMode]);
+
   // 站点分析模式 - 监听数据变化渲染标记点
   useEffect(() => {
     if (!mapInstanceRef.current || !isSiteAnalysisMode) return;
-
-    // 加载本地数据
-    loadFromLocalStorage();
 
     const map = mapInstanceRef.current;
     if (!map.renderSiteMarkers) return;
