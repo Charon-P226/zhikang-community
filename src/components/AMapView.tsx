@@ -56,8 +56,8 @@ export default function AMapView({
     '3': [117.182, 39.146],
   };
 
-  // 社区医院位置 - 天津都行商城附近
-  const hospitalCoord: [number, number] = [117.1853, 39.1488];
+  // 社区医院位置
+  const hospitalCoord: [number, number] = [117.176836, 39.147133];
 
   useEffect(() => {
     if (!mapRef.current) return;
