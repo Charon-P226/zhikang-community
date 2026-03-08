@@ -485,15 +485,63 @@ export default function AMapView({
     });
   }, [originPoint, markers, isSiteAnalysisMode]);
 
-  // 导出 JSON 功能
+  // 导出 JSON 功能（含设计建议坐标）
   const exportSiteData = () => {
-    const data = markers.map(m => ({
+    // 原始标记点数据
+    const markersData = markers.map(m => ({
       Type: m.type,
       Relative_X: m.relativeX,
       Relative_Y: m.relativeY
     }));
 
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    // 构建完整导出数据
+    const exportData: Record<string, any> = {
+      origin: originPoint ? {
+        lng: originPoint.lng,
+        lat: originPoint.lat
+      } : null,
+      markers: markersData
+    };
+
+    // 添加热力重心（设计中心）
+    if (centroid) {
+      exportData.designCentroid = {
+        x: centroid.x,
+        y: centroid.y,
+        radius: coreRadius,
+        description: '公共活力核心 - 建议建筑主功能区位置'
+      };
+    }
+
+    // 添加最佳入口
+    if (optimalEntry && originPoint) {
+      // 计算相对于原点的坐标
+      const entryOffset = {
+        x: Math.round((optimalEntry.position[0] - originPoint.lng) * 111000 * Math.cos(originPoint.lat * Math.PI / 180)),
+        y: Math.round((optimalEntry.position[1] - originPoint.lat) * 111000)
+      };
+      exportData.optimalEntry = {
+        direction: optimalEntry.direction,
+        relativeX: entryOffset.x,
+        relativeY: entryOffset.y,
+        lng: optimalEntry.position[0],
+        lat: optimalEntry.position[1],
+        accessibilityScore: optimalEntry.score,
+        description: '最佳无障碍主入口位置'
+      };
+    }
+
+    // 添加面积建议
+    if (areaSuggestion) {
+      exportData.areaSuggestion = {
+        message: areaSuggestion.message,
+        suggestedArea: areaSuggestion.area,
+        heatAnchorCount: markers.filter(m => m.type === 'Heat_Anchor').length,
+        linkPointCount: markers.filter(m => m.type === 'Link_Point').length
+      };
+    }
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
