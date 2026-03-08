@@ -652,12 +652,17 @@ export default function AMapView({
       (status: string, result: any) => {
         console.log('Driving result:', status, result);
 
-        if (status === 'complete' && result.routes && result.routes.length > 0) {
+        if (status === 'complete' && result && result.routes && result.routes.length > 0) {
           const route = result.routes[0];
           const distance = (route.distance / 1000).toFixed(1);
           const time = Math.round(route.time / 60);
 
           setRouteInfo('已规划: ' + distance + '公里, 约' + time + '分钟');
+        } else if (status === 'error') {
+          // 更详细的错误处理
+          const errorMsg = result?.info || '未知错误';
+          console.error('路径规划错误:', errorMsg);
+          setRouteInfo('规划失败: 请检查网络连接或API配置');
         } else {
           setRouteInfo('规划失败: ' + (result?.info || status));
         }
