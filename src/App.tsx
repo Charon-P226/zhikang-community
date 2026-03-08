@@ -515,7 +515,8 @@ export default function App() {
               <div className="grid grid-cols-3 gap-8 flex-1">
                 {/* 左侧列 */}
                 <div className="col-span-2">
-                  {/* 个人健康概览 */}
+                  {/* 个人健康概览 - 仅居民端显示 */}
+                  {userRole !== 'planner' && (
                   <div className="mb-8">
                     <h2 className="text-xl font-bold text-slate-700 mb-5">个人健康概览</h2>
                     <div className="grid grid-cols-2 gap-5">
@@ -553,6 +554,7 @@ export default function App() {
                       </div>
                     </div>
                   </div>
+                  )}
 
                   {/* 快捷服务入口 */}
                   <div className="mt-auto">
@@ -610,13 +612,15 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* 一键求助按钮 */}
+                  {/* 一键求助按钮 - 仅居民端显示 */}
+                  {userRole !== 'planner' && (
                   <div>
                     <button onClick={() => { const incidentTypes = ['紧急求助', '检测到摔倒', '健康异常', '突发晕倒']; const names = ['张先生', '李女士', '王大爷', '刘阿姨', '陈同学', '赵先生', '孙女士', '周大爷']; const locations = ['居民区', '商业街', '公园', '超市', '小区门口', '公交站']; let newCoords: [number, number]; let attempts = 0; do { newCoords = [117.177 + Math.random() * 0.015, 39.145 + Math.random() * 0.008] as [number, number]; attempts++; } while (allIncidents.some(inc => Math.abs(inc.coordinates[0] - newCoords[0]) < 0.003 && Math.abs(inc.coordinates[1] - newCoords[1]) < 0.003) && attempts < 50); const type = incidentTypes[Math.floor(Math.random() * incidentTypes.length)]; const name = names[Math.floor(Math.random() * names.length)]; const location = locations[Math.floor(Math.random() * locations.length)]; const distance = (Math.random() * 2).toFixed(1) + '公里'; const newIncident = { id: Date.now().toString(), type, location, resident: name, time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }), status: 'pending', distance, image: '', coordinates: newCoords }; setAllIncidents([newIncident, ...allIncidents]); setSelectedIncident(newIncident); setIsIncidentDismissed(false); setIncidentsCollapsed(false); setActiveView(AppView.EMERGENCY_RESPONSE); }} className="w-full flex items-center justify-center gap-3 bg-red-500 hover:bg-red-600 text-white rounded-2xl p-8 shadow-lg transition-colors">
                       <Zap size={32} />
                       <span className="font-bold text-2xl">一键求助</span>
                     </button>
                   </div>
+                  )}
                 </div>
               </div>
             </div>
