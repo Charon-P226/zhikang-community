@@ -79,6 +79,34 @@ export default function AMapView({
   const [mapError, setMapError] = useState<string>('');
   const [routeInfo, setRouteInfo] = useState<string>('');
 
+  // LocalStorage 键名
+  const STORAGE_KEY = 'site_analysis_data';
+  const [showLoadTip, setShowLoadTip] = useState<boolean>(false);
+
+  // 保存到 localStorage
+  const saveToLocalStorage = () => {
+    const data = { originPoint, markers, timestamp: Date.now() };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  };
+
+  // 从 localStorage 加载数据
+  const loadFromLocalStorage = () => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const data = JSON.parse(stored);
+        if (data.markers && data.markers.length > 0) {
+          setMarkers(data.markers || []);
+          setOriginPoint(data.originPoint || null);
+          setShowLoadTip(true);
+          setTimeout(() => setShowLoadTip(false), 3000);
+        }
+      }
+    } catch (e) {
+      console.error('加载本地数据失败:', e);
+    }
+  };
+
   // 站点分析模式状态
   const [originPoint, setOriginPoint] = useState<{lng: number, lat: number} | null>(null);
   const [markers, setMarkers] = useState<SiteMarker[]>([]);
@@ -442,6 +470,9 @@ export default function AMapView({
   useEffect(() => {
     if (!mapInstanceRef.current || !isSiteAnalysisMode) return;
 
+    // 加载本地数据
+    loadFromLocalStorage();
+
     const map = mapInstanceRef.current;
     if (!map.renderSiteMarkers) return;
 
@@ -484,6 +515,13 @@ export default function AMapView({
       markerRefs.current.push(amarker);
     });
   }, [originPoint, markers, isSiteAnalysisMode]);
+
+  // 监听数据变化，自动保存到 localStorage
+  useEffect(() => {
+    if (isSiteAnalysisMode && (markers.length > 0 || originPoint)) {
+      saveToLocalStorage();
+    }
+  }, [markers, originPoint, isSiteAnalysisMode]);
 
   // 导出 JSON 功能（含设计建议坐标）
   const exportSiteData = () => {
@@ -555,11 +593,14 @@ export default function AMapView({
     setMarkers(prev => prev.filter(m => m.id !== id));
   };
 
-  // 清除原点
+  // 清除原点（带确认）
   const clearOrigin = () => {
-    setOriginPoint(null);
-    setCurrentClickPos(null);
-    setMarkers([]);
+    if (window.confirm('确定要清空所有调研点位吗？此操作不可恢复。')) {
+      setOriginPoint(null);
+      setCurrentClickPos(null);
+      setMarkers([]);
+      localStorage.removeItem(STORAGE_KEY);
+    }
   };
 
   const searchRoute = (incidentCoord: [number, number]) => {
@@ -1145,6 +1186,13 @@ export default function AMapView({
           <div className="text-lg font-bold border-b border-slate-600 pb-2">
             基地坐标系
           </div>
+
+          {/* 数据加载提示 */}
+          {showLoadTip && (
+            <div className="bg-green-500/20 border border-green-500/50 rounded-lg p-2 text-xs text-green-300 animate-pulse">
+              ✓ 检测到上次调研记录，已自动加载
+            </div>
+          )}
 
           {/* Tab 切换 */}
           <div className="flex bg-slate-700/50 rounded-lg p-1">
