@@ -84,7 +84,219 @@ export default function AMapView({
   const [markers, setMarkers] = useState<SiteMarker[]>([]);
   const [selectedMarkerType, setSelectedMarkerType] = useState<'Heat_Anchor' | 'Barrier' | 'Link_Point'>('Heat_Anchor');
   const [currentClickPos, setCurrentClickPos] = useState<{x: number, y: number} | null>(null);
+  const [siteAnalysisTab, setSiteAnalysisTab] = useState<'collect' | 'design'>('collect');
   const markerRefs = useRef<any[]>([]);
+
+  // 设计参数预判状态
+  const [centroid, setCentroid] = useState<{x: number, y: number} | null>(null);
+  const [coreRadius, setCoreRadius] = useState<number>(0);
+  const [areaSuggestion, setAreaSuggestion] = useState<{type: string, message: string, area: number} | null>(null);
+  const [roadMarkers, setRoadMarkers] = useState<Array<{direction: string, position: [number, number], distance: number}>>([]);
+  const [optimalEntry, setOptimalEntry] = useState<{position: [number, number], score: number, direction: string} | null>(null);
+  const [isCalculating, setIsCalculating] = useState<boolean>(false);
+
+  // 圆形覆盖层引用
+  const centroidCircleRef = useRef<any>(null);
+  const entryMarkerRef = useRef<any>(null);
+
+  // 计算热力重心
+  const calculateCentroid = () => {
+    const heatAnchors = markers.filter(m => m.type === 'Heat_Anchor');
+    if (heatAnchors.length === 0) {
+      setCentroid(null);
+      setCoreRadius(0);
+      return;
+    }
+
+    const avgX = heatAnchors.reduce((sum, m) => sum + m.relativeX, 0) / heatAnchors.length;
+    const avgY = heatAnchors.reduce((sum, m) => sum + m.relativeY, 0) / heatAnchors.length;
+
+    // 计算平均距离作为半径
+    const avgDistance = heatAnchors.reduce((sum, m) => {
+      return sum + Math.sqrt(Math.pow(m.relativeX - avgX, 2) + Math.pow(m.relativeY - avgY, 2));
+    }, 0) / heatAnchors.length;
+
+    setCentroid({ x: Math.round(avgX), y: Math.round(avgY) });
+    setCoreRadius(Math.round(avgDistance));
+
+    // 在地图上绘制圆形区域
+    if (originPoint && mapInstanceRef.current) {
+      const centerLngLat = {
+        lng: originPoint.lng + avgX / (EARTH_RADIUS * Math.cos(originPoint.lat * Math.PI / 180) * Math.PI / 180),
+        lat: originPoint.lat + avgY / (EARTH_RADIUS * Math.PI / 180)
+      };
+
+      // 清除旧的圆形
+      if (centroidCircleRef.current) {
+        centroidCircleRef.current.setMap(null);
+      }
+
+      // 创建新的圆形覆盖层
+      const circle = new window.AMap.Circle({
+        center: [centerLngLat.lng, centerLngLat.lat],
+        radius: avgDistance,
+        fillColor: 'rgba(139, 92, 246, 0.3)',
+        strokeColor: '#8b5cf6',
+        strokeWeight: 2,
+        strokeOpacity: 0.8,
+        fillOpacity: 0.3
+      });
+
+      circle.setMap(mapInstanceRef.current);
+      centroidCircleRef.current = circle;
+    }
+  };
+
+  // 计算面积配比建议
+  const calculateAreaSuggestion = () => {
+    const heatCount = markers.filter(m => m.type === 'Heat_Anchor').length;
+    const linkCount = markers.filter(m => m.type === 'Link_Point').length;
+
+    if (heatCount > 10 && linkCount < 5) {
+      setAreaSuggestion({
+        type: 'warning',
+        message: '建议增加社区社交面积至 4000㎡',
+        area: 4000
+      });
+    } else if (heatCount > 5 && linkCount < 3) {
+      setAreaSuggestion({
+        type: 'warning',
+        message: '建议增加社区社交面积至 2500㎡',
+        area: 2500
+      });
+    } else if (heatCount > 3 && linkCount > 5) {
+      setAreaSuggestion({
+        type: 'good',
+        message: '面积配比合理',
+        area: 0
+      });
+    } else {
+      setAreaSuggestion({
+        type: 'info',
+        message: '建议进一步分析数据后再做判断',
+        area: 0
+      });
+    }
+  };
+
+  // 添加主干道标记
+  const addRoadMarker = (direction: string) => {
+    if (!originPoint) return;
+
+    // 计算各方向的大致位置（向外偏移约200米）
+    const offsets: {[key: string]: {x: number, y: number}} = {
+      '北': {x: 0, y: 200},
+      '东北': {x: 150, y: 150},
+      '东': {x: 200, y: 0},
+      '东南': {x: 150, y: -150},
+      '南': {x: 0, y: -200},
+      '西南': {x: -150, y: -150},
+      '西': {x: -200, y: 0},
+      '西北': {x: -150, y: 150}
+    };
+
+    const offset = offsets[direction];
+    if (!offset) return;
+
+    const newLngLat = {
+      lng: originPoint.lng + offset.x / (EARTH_RADIUS * Math.cos(originPoint.lat * Math.PI / 180) * Math.PI / 180),
+      lat: originPoint.lat + offset.y / (EARTH_RADIUS / 180 * Math.PI)
+    };
+
+    const newRoadMarker = {
+      direction,
+      position: [newLngLat.lng, newLngLat.lat] as [number, number],
+      distance: Math.sqrt(offset.x * offset.x + offset.y * offset.y)
+    };
+
+    // 检查是否已存在相同方向
+    const exists = roadMarkers.find(r => r.direction === direction);
+    if (exists) {
+      setRoadMarkers(roadMarkers.map(r => r.direction === direction ? newRoadMarker : r));
+    } else {
+      setRoadMarkers([...roadMarkers, newRoadMarker]);
+    }
+  };
+
+  // 计算入口可达性
+  const calculateAccessibility = async () => {
+    if (!originPoint || roadMarkers.length === 0) return;
+
+    setIsCalculating(true);
+
+    // 简化算法：基于距离和方向评分
+    // 实际项目中可以使用 AMap.Driving 进行真实路径规划
+    const scores = roadMarkers.map(road => {
+      // 距离评分（越近越好）
+      const distanceScore = Math.max(0, 100 - road.distance / 5);
+
+      // 方向评分（北向和东向更佳）
+      const directionBonus: {[key: string]: number} = {
+        '北': 15,
+        '东北': 10,
+        '东': 15,
+        '东南': 5,
+        '南': 0,
+        '西南': 0,
+        '西': 5,
+        '西北': 10
+      };
+
+      const score = distanceScore + (directionBonus[road.direction] || 0);
+      return { ...road, score };
+    });
+
+    // 找出最佳入口
+    const best = scores.reduce((prev, curr) => curr.score > prev.score ? curr : prev);
+
+    setOptimalEntry({
+      position: best.position,
+      score: Math.round(best.score),
+      direction: best.direction
+    });
+
+    // 在地图上标记最佳入口
+    if (mapInstanceRef.current) {
+      // 清除旧的入口标记
+      if (entryMarkerRef.current) {
+        entryMarkerRef.current.setMap(null);
+      }
+
+      const entryContent = document.createElement('div');
+      entryContent.innerHTML = `<div style="width:32px;height:32px;background:#22c55e;border:3px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:bold;color:white;">入</div>`;
+
+      const entryMarker = new window.AMap.Marker({
+        position: best.position,
+        content: entryContent,
+        anchor: 'center',
+        offset: new window.AMap.Pixel(0, 0),
+        title: `最佳入口: ${best.direction}向 (评分: ${Math.round(best.score)})`
+      });
+
+      entryMarker.setMap(mapInstanceRef.current);
+      entryMarkerRef.current = entryMarker;
+    }
+
+    setIsCalculating(false);
+  };
+
+  // 清除设计分析结果
+  const clearAnalysis = () => {
+    setCentroid(null);
+    setCoreRadius(0);
+    setAreaSuggestion(null);
+    setRoadMarkers([]);
+    setOptimalEntry(null);
+
+    if (centroidCircleRef.current) {
+      centroidCircleRef.current.setMap(null);
+      centroidCircleRef.current = null;
+    }
+    if (entryMarkerRef.current) {
+      entryMarkerRef.current.setMap(null);
+      entryMarkerRef.current = null;
+    }
+  };
 
   // 使用 ref 保存最新状态，解决闭包问题
   const originPointRef = useRef(originPoint);
@@ -881,11 +1093,38 @@ export default function AMapView({
 
       {/* 站点分析模式侧边栏 */}
       {isSiteAnalysisMode && (
-        <div className="w-72 bg-slate-800/95 backdrop-blur-md p-4 text-white flex flex-col gap-4 overflow-y-auto">
+        <div className="w-80 bg-slate-800/95 backdrop-blur-md p-4 text-white flex flex-col gap-4 overflow-y-auto">
           <div className="text-lg font-bold border-b border-slate-600 pb-2">
             基地坐标系
           </div>
 
+          {/* Tab 切换 */}
+          <div className="flex bg-slate-700/50 rounded-lg p-1">
+            <button
+              onClick={() => setSiteAnalysisTab('collect')}
+              className={`flex-1 px-3 py-2 rounded text-sm font-medium transition-all ${
+                siteAnalysisTab === 'collect'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-slate-300 hover:bg-slate-600'
+              }`}
+            >
+              数据采集
+            </button>
+            <button
+              onClick={() => setSiteAnalysisTab('design')}
+              className={`flex-1 px-3 py-2 rounded text-sm font-medium transition-all ${
+                siteAnalysisTab === 'design'
+                  ? 'bg-purple-600 text-white'
+                  : 'text-slate-300 hover:bg-slate-600'
+              }`}
+            >
+              设计建议
+            </button>
+          </div>
+
+          {/* Tab 内容 */}
+          {siteAnalysisTab === 'collect' ? (
+            <>
           {/* 基地原点信息 */}
           <div className="bg-slate-700/50 rounded-lg p-3">
             <div className="text-sm text-slate-300 mb-1">基地原点 (Origin)</div>
@@ -896,7 +1135,7 @@ export default function AMapView({
               </div>
             ) : (
               <div className="text-xs text-yellow-400">
-                点击地图设置原点
+                右键点击地图设置原点
               </div>
             )}
           </div>
@@ -991,6 +1230,143 @@ export default function AMapView({
               清除所有数据
             </button>
           </div>
+            </>
+          ) : (
+            <>
+          {/* 设计建议面板 */}
+          <div className="bg-purple-900/50 rounded-lg p-3 border border-purple-500/30">
+            <div className="text-sm font-bold text-purple-300 mb-3">设计参数预判</div>
+
+            {/* 1. 热力重心计算 */}
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-slate-300">热力重心</span>
+                <button
+                  onClick={calculateCentroid}
+                  disabled={markers.filter(m => m.type === 'Heat_Anchor').length === 0}
+                  className="px-2 py-1 bg-purple-600 hover:bg-purple-500 disabled:bg-slate-600 disabled:cursor-not-allowed rounded text-xs"
+                >
+                  计算中心
+                </button>
+              </div>
+              {centroid && (
+                <div className="bg-slate-600/50 rounded p-2 text-xs">
+                  <div className="text-purple-300 font-bold">公共活力核心</div>
+                  <div className="font-mono mt-1">
+                    中心: ({centroid.x}, {centroid.y}) m
+                  </div>
+                  <div className="text-slate-400">
+                    半径: {coreRadius} m
+                  </div>
+                </div>
+              )}
+              {markers.filter(m => m.type === 'Heat_Anchor').length === 0 && (
+                <div className="text-xs text-slate-400">
+                  请先添加热力锚点
+                </div>
+              )}
+            </div>
+
+            {/* 2. 面积配比建议 */}
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-slate-300">面积配比</span>
+                <button
+                  onClick={calculateAreaSuggestion}
+                  disabled={markers.length === 0}
+                  className="px-2 py-1 bg-purple-600 hover:bg-purple-500 disabled:bg-slate-600 disabled:cursor-not-allowed rounded text-xs"
+                >
+                  生成建议
+                </button>
+              </div>
+              {areaSuggestion && (
+                <div className={`rounded p-2 text-xs ${
+                  areaSuggestion.type === 'warning' ? 'bg-orange-500/20 border border-orange-500/50' :
+                  areaSuggestion.type === 'good' ? 'bg-green-500/20 border border-green-500/50' :
+                  'bg-blue-500/20 border border-blue-500/50'
+                }`}>
+                  <div className={
+                    areaSuggestion.type === 'warning' ? 'text-orange-300' :
+                    areaSuggestion.type === 'good' ? 'text-green-300' :
+                    'text-blue-300'
+                  }>
+                    {areaSuggestion.message}
+                  </div>
+                  {areaSuggestion.area > 0 && (
+                    <div className="text-slate-400 mt-1">
+                      建议面积: {areaSuggestion.area} ㎡
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* 3. 入口压力测试 */}
+            <div className="mb-4">
+              <div className="text-xs text-slate-300 mb-2">入口压力测试</div>
+
+              {/* 主干道方向选择 */}
+              <div className="grid grid-cols-4 gap-1 mb-2">
+                {['北', '东北', '东', '东南', '南', '西南', '西', '西北'].map(dir => (
+                  <button
+                    key={dir}
+                    onClick={() => addRoadMarker(dir)}
+                    disabled={!originPoint}
+                    className={`px-2 py-1 text-xs rounded ${
+                      roadMarkers.find(r => r.direction === dir)
+                        ? 'bg-green-600 text-white'
+                        : 'bg-slate-600 hover:bg-slate-500 disabled:bg-slate-700'
+                    }`}
+                  >
+                    {dir}
+                  </button>
+                ))}
+              </div>
+
+              {/* 已选道路列表 */}
+              {roadMarkers.length > 0 && (
+                <div className="bg-slate-600/50 rounded p-2 mb-2">
+                  <div className="text-xs text-slate-400 mb-1">已选主干道:</div>
+                  {roadMarkers.map((road, idx) => (
+                    <div key={idx} className="text-xs flex justify-between">
+                      <span>{road.direction}向</span>
+                      <span className="text-slate-400">{road.distance}m</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <button
+                onClick={calculateAccessibility}
+                disabled={roadMarkers.length === 0 || isCalculating}
+                className="w-full px-2 py-1 bg-green-600 hover:bg-green-500 disabled:bg-slate-600 disabled:cursor-not-allowed rounded text-xs"
+              >
+                {isCalculating ? '计算中...' : '计算最佳入口'}
+              </button>
+
+              {optimalEntry && (
+                <div className="bg-green-500/20 border border-green-500/50 rounded p-2 mt-2">
+                  <div className="text-xs text-green-300 font-bold">最佳入口位置</div>
+                  <div className="text-xs">
+                    方向: {optimalEntry.direction}向
+                  </div>
+                  <div className="text-xs text-slate-400">
+                    可达性评分: {optimalEntry.score}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 清除分析结果 */}
+            <button
+              onClick={clearAnalysis}
+              className="w-full px-3 py-2 bg-slate-600 hover:bg-slate-500 rounded text-xs"
+            >
+              清除分析结果
+            </button>
+          </div>
+            </>
+          )}
         </div>
       )}
     </div>
