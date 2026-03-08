@@ -1204,22 +1204,52 @@ export default function AMapView({
             <div className="text-sm text-slate-300 mb-2">标记类型</div>
             <div className="flex flex-col gap-2">
               {[
-                { type: 'Heat_Anchor' as const, color: 'bg-red-500', label: '热点 (Heat)' },
-                { type: 'Barrier' as const, color: 'bg-orange-500', label: '障碍 (Barrier)' },
-                { type: 'Link_Point' as const, color: 'bg-blue-500', label: '连接点 (Link)' }
-              ].map(({ type, color, label }) => (
-                <button
-                  key={type}
-                  onClick={() => setSelectedMarkerType(type)}
-                  className={`px-3 py-2 rounded text-sm text-left flex items-center gap-2 transition-all ${
-                    selectedMarkerType === type
-                      ? 'bg-blue-600 ring-2 ring-blue-400'
-                      : 'bg-slate-600 hover:bg-slate-500'
-                  }`}
-                >
-                  <span className={`w-3 h-3 rounded-full ${color}`}></span>
-                  {label}
-                </button>
+                {
+                  type: 'Heat_Anchor' as const,
+                  color: 'bg-red-500',
+                  label: '热点 (Heat)',
+                  tooltip: '非正式社交核心。代表居民自发聚集、高频活动的场所，决定了规划的"公共空间能级"。',
+                  impact: '建议：在此处扩充公共空间，植入适老化服务设施。'
+                },
+                {
+                  type: 'Barrier' as const,
+                  color: 'bg-yellow-500',
+                  label: '障碍 (Barrier)',
+                  tooltip: '健康环境断点。代表通行阻碍、适老化缺失或安全隐患，是"微更新手术"的重点位点。',
+                  impact: '建议：此处需进行地面平整、加装坡道或人车分流改造。'
+                },
+                {
+                  type: 'Link_Point' as const,
+                  color: 'bg-blue-500',
+                  label: '连接点 (Link)',
+                  tooltip: '社区资源锚点。代表医疗、养老、交通等既有公服设施，决定了规划的"资源协同路径"。',
+                  impact: '建议：在此处建立无障碍接驳或引导系统。'
+                }
+              ].map(({ type, color, label, tooltip, impact }) => (
+                <div key={type} className="relative group">
+                  <button
+                    key={type}
+                    onClick={() => setSelectedMarkerType(type)}
+                    className={`w-full px-3 py-2 rounded text-sm text-left flex items-center gap-2 transition-all ${
+                      selectedMarkerType === type
+                        ? 'bg-blue-600 ring-2 ring-blue-400'
+                        : 'bg-slate-600 hover:bg-slate-500'
+                    }`}
+                  >
+                    <span className={`w-3 h-3 rounded-full ${color}`}></span>
+                    {label}
+                  </button>
+                  {/* 悬浮提示 */}
+                  <div className="absolute left-0 bottom-full mb-2 w-64 p-2 bg-slate-900/95 text-xs text-white rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 shadow-lg">
+                    <div className="font-medium text-purple-300 mb-1">{label.replace(/\(.*\)/, '').trim()}</div>
+                    <div className="text-slate-300">{tooltip}</div>
+                    {selectedMarkerType === type && (
+                      <div className="mt-2 pt-2 border-t border-slate-600 text-green-300">
+                        {impact}
+                      </div>
+                    )}
+                  </div>
+                </div>
               ))}
             </div>
             <div className="text-xs text-slate-400 mt-2">
@@ -1283,7 +1313,11 @@ export default function AMapView({
             <>
           {/* 设计建议面板 */}
           <div className="bg-purple-900/50 rounded-lg p-3 border border-purple-500/30">
-            <div className="text-sm font-bold text-purple-300 mb-3">设计参数预判</div>
+            <div className="text-sm font-bold text-purple-300 mb-2">设计参数预判</div>
+            {/* 逻辑释义 */}
+            <div className="text-xs text-slate-400 mb-3 italic border-l-2 border-purple-500 pl-2">
+              本算法通过连接点拉引流线，通过热点定位空间重心，通过障碍点修正路径权重，从而推导出最符合循证原则的社区规划草图。
+            </div>
 
             {/* 1. 热力重心计算 */}
             <div className="mb-4">
