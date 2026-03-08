@@ -1,6 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { RiskArea, Incident, BuildingModel, FloorModel, FacilityModel } from '../types';
 
+// 基地坐标系标记点类型
+export interface SiteMarker {
+  id: string;
+  type: 'Heat_Anchor' | 'Barrier' | 'Link_Point';
+  lng: number;
+  lat: number;
+  relativeX: number;  // 米
+  relativeY: number;  // 米
+  name: string;
+}
+
 declare global {
   interface Window {
     AMap: any;
@@ -23,6 +34,25 @@ interface AMapViewProps {
   buildingModel?: BuildingModel | null;
   currentFloor?: number;
   onFloorChange?: (floor: number) => void;
+  // 站点分析模式
+  isSiteAnalysisMode?: boolean;
+}
+
+// 地球半径（米）- WGS84
+const EARTH_RADIUS = 6371000;
+
+// 经纬度转平面坐标（米）- 考虑地球曲率
+function lngLatToMeter(origin: {lng: number, lat: number}, target: {lng: number, lat: number}) {
+  const dLat = (target.lat - origin.lat) * Math.PI / 180;
+  const dLng = (target.lng - origin.lng) * Math.PI / 180;
+  const latRad = origin.lat * Math.PI / 180;
+
+  // X: 东西方向 (经度差)
+  const x = dLng * EARTH_RADIUS * Math.cos(latRad);
+  // Y: 南北方向 (纬度差)
+  const y = dLat * EARTH_RADIUS;
+
+  return { x: Math.round(x), y: Math.round(y) };
 }
 
 export default function AMapView({
@@ -39,7 +69,8 @@ export default function AMapView({
   zoom = 1,
   buildingModel,
   currentFloor = 1,
-  onFloorChange
+  onFloorChange,
+  isSiteAnalysisMode = false
 }: AMapViewProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
@@ -47,6 +78,25 @@ export default function AMapView({
   const [status, setStatus] = useState<string>('初始化中...');
   const [mapError, setMapError] = useState<string>('');
   const [routeInfo, setRouteInfo] = useState<string>('');
+
+  // 站点分析模式状态
+  const [originPoint, setOriginPoint] = useState<{lng: number, lat: number} | null>(null);
+  const [markers, setMarkers] = useState<SiteMarker[]>([]);
+  const [selectedMarkerType, setSelectedMarkerType] = useState<'Heat_Anchor' | 'Barrier' | 'Link_Point'>('Heat_Anchor');
+  const [currentClickPos, setCurrentClickPos] = useState<{x: number, y: number} | null>(null);
+  const markerRefs = useRef<any[]>([]);
+
+  // 使用 ref 保存最新状态，解决闭包问题
+  const originPointRef = useRef(originPoint);
+  const markersRef = useRef(markers);
+  const selectedMarkerTypeRef = useRef(selectedMarkerType);
+  const isSiteAnalysisModeRef = useRef(isSiteAnalysisMode);
+
+  // 同步 ref 与状态
+  useEffect(() => { originPointRef.current = originPoint; }, [originPoint]);
+  useEffect(() => { markersRef.current = markers; }, [markers]);
+  useEffect(() => { selectedMarkerTypeRef.current = selectedMarkerType; }, [selectedMarkerType]);
+  useEffect(() => { isSiteAnalysisModeRef.current = isSiteAnalysisMode; }, [isSiteAnalysisMode]);
 
   const CENTER: [number, number] = [117.185, 39.149];
 
@@ -83,13 +133,63 @@ export default function AMapView({
           setStatus('地图加载成功');
         });
 
-        map.on('click', () => {
-          onSelectRiskArea(null);
-          onSelectIncident(null);
-        });
-
         mapInstanceRef.current = map;
         updateMarkers();
+
+        // 站点分析模式 - 左键点击设置原点或计算相对坐标
+        map.on('click', (e: any) => {
+          if (!isSiteAnalysisModeRef.current) {
+            onSelectRiskArea(null);
+            onSelectIncident(null);
+            return;
+          }
+
+          const { lng, lat } = e.lnglat;
+
+          if (!originPointRef.current) {
+            // 没有原点时，点击设置原点
+            setOriginPoint({ lng, lat });
+            setCurrentClickPos(null);
+          } else {
+            // 有原点时，计算相对坐标
+            const meter = lngLatToMeter(originPointRef.current, { lng, lat });
+            setCurrentClickPos(meter);
+          }
+        });
+
+        // 站点分析模式 - 右键点击添加标记
+        map.on('rightclick', (e: any) => {
+          if (!isSiteAnalysisModeRef.current) return;
+
+          // 没有原点时，右键点击设置原点
+          if (!originPointRef.current) {
+            const { lng, lat } = e.lnglat;
+            setOriginPoint({ lng, lat });
+            return;
+          }
+
+          const { lng, lat } = e.lnglat;
+          const meter = lngLatToMeter(originPointRef.current, { lng, lat });
+
+          const newMarker: SiteMarker = {
+            id: `marker_${Date.now()}`,
+            type: selectedMarkerTypeRef.current,
+            lng,
+            lat,
+            relativeX: meter.x,
+            relativeY: meter.y,
+            name: `${selectedMarkerTypeRef.current}_${markersRef.current.filter((m: SiteMarker) => m.type === selectedMarkerTypeRef.current).length + 1}`
+          };
+
+          setMarkers(prev => [...prev, newMarker]);
+        });
+
+        // 阻止默认右键菜单
+        map.on('contextmenu', (e: any) => {
+          if (isSiteAnalysisModeRef.current) {
+            e.domEvent.preventDefault();
+          }
+        });
 
       } catch (err: any) {
         setStatus('地图创建失败');
@@ -125,6 +225,82 @@ export default function AMapView({
       }
     };
   }, []);
+
+  // 站点分析模式 - 监听数据变化渲染标记点
+  useEffect(() => {
+    if (!mapInstanceRef.current || !isSiteAnalysisMode) return;
+
+    const map = mapInstanceRef.current;
+    if (!map.renderSiteMarkers) return;
+
+    // 清除旧的标记
+    markerRefs.current.forEach((m: any) => m && m.setMap && m.setMap(null));
+    markerRefs.current = [];
+
+    // 渲染原点标记
+    if (originPoint) {
+      const originContent = document.createElement('div');
+      originContent.innerHTML = '<div style="width:24px;height:24px;background:#8b5cf6;border:3px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;"><svg width="12" height="12" viewBox="0 0 24 24" fill="white"><path d="M12 2L4 20h16L12 2z"/></svg></div>';
+
+      const originMarker = new window.AMap.Marker({
+        position: [originPoint.lng, originPoint.lat],
+        content: originContent,
+        anchor: 'center',
+        offset: new window.AMap.Pixel(0, 0),
+        title: '基地原点',
+      });
+      originMarker.setMap(map);
+      markerRefs.current.push(originMarker);
+    }
+
+    // 渲染标记点
+    markers.forEach((marker: SiteMarker) => {
+      const color = marker.type === 'Heat_Anchor' ? '#ef4444' :
+                   marker.type === 'Barrier' ? '#f97316' : '#3b82f6';
+
+      const markerContent = document.createElement('div');
+      markerContent.innerHTML = `<div style="width:20px;height:20px;background:${color};border:2px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;"></div>`;
+
+      const amarker = new window.AMap.Marker({
+        position: [marker.lng, marker.lat],
+        content: markerContent,
+        anchor: 'center',
+        offset: new window.AMap.Pixel(0, 0),
+        title: `${marker.type}: (${marker.relativeX}, ${marker.relativeY})m`,
+      });
+      amarker.setMap(map);
+      markerRefs.current.push(amarker);
+    });
+  }, [originPoint, markers, isSiteAnalysisMode]);
+
+  // 导出 JSON 功能
+  const exportSiteData = () => {
+    const data = markers.map(m => ({
+      Type: m.type,
+      Relative_X: m.relativeX,
+      Relative_Y: m.relativeY
+    }));
+
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'site_analysis.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // 删除标记点
+  const deleteMarker = (id: string) => {
+    setMarkers(prev => prev.filter(m => m.id !== id));
+  };
+
+  // 清除原点
+  const clearOrigin = () => {
+    setOriginPoint(null);
+    setCurrentClickPos(null);
+    setMarkers([]);
+  };
 
   const searchRoute = (incidentCoord: [number, number]) => {
     if (!mapInstanceRef.current) {
@@ -628,22 +804,25 @@ export default function AMapView({
   }, [activeView, activeDataLayer, riskAreas, selectedIncident, incidents]);
 
   return (
-    <div className="w-full h-full relative">
-      <div className="absolute top-2 left-2 z-50 bg-black/70 text-white text-xs px-2 py-1 rounded">
-        {status}
-        {routeInfo && <span className="ml-2 text-green-300">| {routeInfo}</span>}
-        {mapError && <span className="ml-2 text-red-300">| {mapError}</span>}
+    <div className="w-full h-full relative flex">
+      {/* 地图区域 */}
+      <div className="flex-1 relative">
+        <div className="absolute top-2 left-2 z-50 bg-black/70 text-white text-xs px-2 py-1 rounded">
+          {status}
+          {routeInfo && <span className="ml-2 text-green-300">| {routeInfo}</span>}
+          {mapError && <span className="ml-2 text-red-300">| {mapError}</span>}
+        </div>
+
+        <div
+          ref={mapRef}
+          className="w-full h-full"
+          style={{ minHeight: '500px' }}
+        />
       </div>
 
-      <div
-        ref={mapRef}
-        className="w-full h-full"
-        style={{ minHeight: '500px' }}
-      />
-
       {/* 健康风险热力图图例 */}
-      {activeView === 'HEALTH_RISK' && (
-        <div className="absolute bottom-4 right-4 z-50 bg-white/30 backdrop-blur-md rounded-lg shadow-lg p-3">
+        {activeView === 'HEALTH_RISK' && (
+          <div className="absolute bottom-4 right-4 z-50 bg-white/30 backdrop-blur-md rounded-lg shadow-lg p-3">
           {activeDataLayer === 'heat' && (
             <div className="text-xs">
               <p className="font-bold text-slate-800 mb-2">商业活力</p>
@@ -697,6 +876,121 @@ export default function AMapView({
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* 站点分析模式侧边栏 */}
+      {isSiteAnalysisMode && (
+        <div className="w-72 bg-slate-800/95 backdrop-blur-md p-4 text-white flex flex-col gap-4 overflow-y-auto">
+          <div className="text-lg font-bold border-b border-slate-600 pb-2">
+            基地坐标系
+          </div>
+
+          {/* 基地原点信息 */}
+          <div className="bg-slate-700/50 rounded-lg p-3">
+            <div className="text-sm text-slate-300 mb-1">基地原点 (Origin)</div>
+            {originPoint ? (
+              <div className="text-xs font-mono">
+                <div>经度: {originPoint.lng.toFixed(6)}</div>
+                <div>纬度: {originPoint.lat.toFixed(6)}</div>
+              </div>
+            ) : (
+              <div className="text-xs text-yellow-400">
+                点击地图设置原点
+              </div>
+            )}
+          </div>
+
+          {/* 当前点击位置 */}
+          {currentClickPos && originPoint && (
+            <div className="bg-slate-700/50 rounded-lg p-3">
+              <div className="text-sm text-slate-300 mb-1">相对坐标</div>
+              <div className="text-xs font-mono">
+                <div>X: {currentClickPos.x} m</div>
+                <div>Y: {currentClickPos.y} m</div>
+              </div>
+            </div>
+          )}
+
+          {/* 标记类型选择 */}
+          <div className="bg-slate-700/50 rounded-lg p-3">
+            <div className="text-sm text-slate-300 mb-2">标记类型</div>
+            <div className="flex flex-col gap-2">
+              {[
+                { type: 'Heat_Anchor' as const, color: 'bg-red-500', label: '热点 (Heat)' },
+                { type: 'Barrier' as const, color: 'bg-orange-500', label: '障碍 (Barrier)' },
+                { type: 'Link_Point' as const, color: 'bg-blue-500', label: '连接点 (Link)' }
+              ].map(({ type, color, label }) => (
+                <button
+                  key={type}
+                  onClick={() => setSelectedMarkerType(type)}
+                  className={`px-3 py-2 rounded text-sm text-left flex items-center gap-2 transition-all ${
+                    selectedMarkerType === type
+                      ? 'bg-blue-600 ring-2 ring-blue-400'
+                      : 'bg-slate-600 hover:bg-slate-500'
+                  }`}
+                >
+                  <span className={`w-3 h-3 rounded-full ${color}`}></span>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="text-xs text-slate-400 mt-2">
+              右键点击地图添加标记
+            </div>
+          </div>
+
+          {/* 标记点列表 */}
+          <div className="bg-slate-700/50 rounded-lg p-3 flex-1 overflow-y-auto max-h-60">
+            <div className="text-sm text-slate-300 mb-2">
+              标记点 ({markers.length})
+            </div>
+            {markers.length === 0 ? (
+              <div className="text-xs text-slate-400">暂无标记点</div>
+            ) : (
+              <div className="flex flex-col gap-1">
+                {markers.map(marker => (
+                  <div
+                    key={marker.id}
+                    className="flex items-center justify-between bg-slate-600/50 rounded px-2 py-1 text-xs"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full ${
+                        marker.type === 'Heat_Anchor' ? 'bg-red-500' :
+                        marker.type === 'Barrier' ? 'bg-orange-500' : 'bg-blue-500'
+                      }`}></span>
+                      <span className="font-mono">
+                        ({marker.relativeX}, {marker.relativeY})
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => deleteMarker(marker.id)}
+                      className="text-red-400 hover:text-red-300 px-1"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* 操作按钮 */}
+          <div className="flex flex-col gap-2">
+            <button
+              onClick={exportSiteData}
+              disabled={markers.length === 0}
+              className="px-4 py-2 bg-green-600 hover:bg-green-500 disabled:bg-slate-600 disabled:cursor-not-allowed rounded text-sm font-medium transition-colors"
+            >
+              导出 site_analysis.json
+            </button>
+            <button
+              onClick={clearOrigin}
+              className="px-4 py-2 bg-red-600/70 hover:bg-red-500/70 rounded text-sm font-medium transition-colors"
+            >
+              清除所有数据
+            </button>
+          </div>
         </div>
       )}
     </div>

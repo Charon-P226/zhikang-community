@@ -319,6 +319,9 @@ export default function App() {
               <button onClick={() => setActiveView(AppView.ACCESSIBILITY)} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg ${activeView === AppView.ACCESSIBILITY ? 'bg-primary text-white' : 'hover:bg-slate-100'}`}>
                 <Accessibility size={20} /><span className="text-sm">无障碍出行</span>
               </button>
+              <button onClick={() => setActiveView(AppView.SITE_ANALYSIS)} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg ${activeView === AppView.SITE_ANALYSIS ? 'bg-primary text-white' : 'hover:bg-slate-100'}`}>
+                <MapPin size={20} /><span className="text-sm">基地坐标系</span>
+              </button>
             </nav>
           </div>
 
@@ -513,6 +516,11 @@ export default function App() {
                         <p className="font-bold text-xl">无障碍出行</p>
                         <p className="text-sm text-white/80 mt-2">无障碍设施导航</p>
                       </button>
+                      <button onClick={() => setActiveView(AppView.SITE_ANALYSIS)} className="bg-gradient-to-br from-purple-500 to-violet-600 rounded-2xl p-8 text-white shadow-lg hover:shadow-xl transition-shadow">
+                        <MapPin size={40} className="mb-4" />
+                        <p className="font-bold text-xl">基地坐标系</p>
+                        <p className="text-sm text-white/80 mt-2">数据点采集与导出</p>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -564,6 +572,7 @@ export default function App() {
             isIncidentDismissed={isIncidentDismissed}
             isDispatched={isDispatched}
             zoom={zoom}
+            isSiteAnalysisMode={activeView === AppView.SITE_ANALYSIS}
           />
         )}
 
