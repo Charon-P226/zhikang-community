@@ -661,8 +661,8 @@ export default function AMapView({
         } else if (status === 'error') {
           // 更详细的错误处理
           const errorMsg = result?.info || '未知错误';
-          console.error('路径规划错误:', errorMsg);
-          setRouteInfo('规划失败: 请检查网络连接或API配置');
+          console.error('路径规划错误:', errorMsg, '医院:', hospitalCoord, '事件:', incidentCoord);
+          setRouteInfo('API受限: 需开通高德Driving服务');
         } else {
           setRouteInfo('规划失败: ' + (result?.info || status));
         }
