@@ -94,6 +94,17 @@ const HELP_INFO = {
 type HelpTab = 'form' | 'help' | 'faq';
 
 export default function App() {
+  // 用户角色状态管理
+  const [userRole, setUserRole] = useState<'resident' | 'planner'>(() => {
+    const saved = localStorage.getItem('userRole');
+    return (saved as 'resident' | 'planner') || 'resident';
+  });
+
+  const handleRoleChange = (role: 'resident' | 'planner') => {
+    setUserRole(role);
+    localStorage.setItem('userRole', role);
+  };
+
   const [activeView, setActiveView] = useState<AppView>(AppView.HOME);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchResults, setShowSearchResults] = useState(false);
@@ -287,16 +298,46 @@ export default function App() {
           </form>
         </div>
         <div className="flex items-center gap-4">
+          {/* 角色切换器 */}
+          <div className="flex items-center gap-2 bg-slate-100 rounded-lg p-1">
+            <button
+              onClick={() => handleRoleChange('resident')}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                userRole === 'resident'
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              居民端
+            </button>
+            <button
+              onClick={() => handleRoleChange('planner')}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                userRole === 'planner'
+                  ? 'bg-purple-600 text-white shadow-sm'
+                  : 'text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              规划师
+            </button>
+          </div>
+
           <button onClick={() => setActiveView(AppView.NOTIFICATIONS)} className="p-2 rounded-lg relative">
             <Bell size={20} />
           </button>
           <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
-            <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-white">
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white ${
+              userRole === 'planner' ? 'bg-purple-600' : 'bg-primary'
+            }`}>
               <User size={16} />
             </div>
             <div className="flex flex-col">
-              <span className="text-sm font-medium">张先生</span>
-              <span className="text-[10px] text-primary">高级居民</span>
+              <span className="text-sm font-medium">
+                {userRole === 'planner' ? '管理员' : '张先生'}
+              </span>
+              <span className={`text-[10px] ${userRole === 'planner' ? 'text-purple-600' : 'text-primary'}`}>
+                {userRole === 'planner' ? '规划师' : '高级居民'}
+              </span>
             </div>
           </div>
         </div>
@@ -307,21 +348,28 @@ export default function App() {
         <aside className="w-72 bg-white border-r border-slate-200 flex flex-col p-4 shrink-0 overflow-y-auto">
           <div className="mb-4">
             <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-3 px-2">
-              {activeView === AppView.HEALTH_RISK ? '主仪表板' : activeView === AppView.ACCESSIBILITY ? '监测' : '应急监测'}
+              {userRole === 'planner' ? '规划师后台' : (activeView === AppView.HEALTH_RISK ? '主仪表板' : activeView === AppView.ACCESSIBILITY ? '监测' : '应急监测')}
             </h3>
             <nav className="space-y-1">
-              <button onClick={() => setActiveView(AppView.EMERGENCY_RESPONSE)} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg ${activeView === AppView.EMERGENCY_RESPONSE ? 'bg-primary text-white' : 'hover:bg-slate-100'}`}>
-                <Siren size={20} /><span className="text-sm">应急响应</span>
-              </button>
-              <button onClick={() => setActiveView(AppView.HEALTH_RISK)} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg ${activeView === AppView.HEALTH_RISK ? 'bg-primary text-white' : 'hover:bg-slate-100'}`}>
-                <MapIcon size={20} /><span className="text-sm">健康风险热力图</span>
-              </button>
-              <button onClick={() => setActiveView(AppView.ACCESSIBILITY)} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg ${activeView === AppView.ACCESSIBILITY ? 'bg-primary text-white' : 'hover:bg-slate-100'}`}>
-                <Accessibility size={20} /><span className="text-sm">无障碍出行</span>
-              </button>
-              <button onClick={() => setActiveView(AppView.SITE_ANALYSIS)} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg ${activeView === AppView.SITE_ANALYSIS ? 'bg-primary text-white' : 'hover:bg-slate-100'}`}>
-                <MapPin size={20} /><span className="text-sm">基地坐标系</span>
-              </button>
+              {userRole === 'planner' ? (
+                // 规划师模式：只显示基地坐标系
+                <button onClick={() => setActiveView(AppView.SITE_ANALYSIS)} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg ${activeView === AppView.SITE_ANALYSIS ? 'bg-purple-600 text-white' : 'hover:bg-purple-50'}`}>
+                  <MapPin size={20} /><span className="text-sm">基地坐标系</span>
+                </button>
+              ) : (
+                // 居民模式：显示应急响应、健康风险热力图、无障碍出行
+                <>
+                  <button onClick={() => setActiveView(AppView.EMERGENCY_RESPONSE)} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg ${activeView === AppView.EMERGENCY_RESPONSE ? 'bg-primary text-white' : 'hover:bg-slate-100'}`}>
+                    <Siren size={20} /><span className="text-sm">应急响应</span>
+                  </button>
+                  <button onClick={() => setActiveView(AppView.HEALTH_RISK)} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg ${activeView === AppView.HEALTH_RISK ? 'bg-primary text-white' : 'hover:bg-slate-100'}`}>
+                    <MapIcon size={20} /><span className="text-sm">健康风险热力图</span>
+                  </button>
+                  <button onClick={() => setActiveView(AppView.ACCESSIBILITY)} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg ${activeView === AppView.ACCESSIBILITY ? 'bg-primary text-white' : 'hover:bg-slate-100'}`}>
+                    <Accessibility size={20} /><span className="text-sm">无障碍出行</span>
+                  </button>
+                </>
+              )}
             </nav>
           </div>
 
@@ -450,8 +498,17 @@ export default function App() {
             <div className="p-8 max-w-6xl mx-auto h-full flex flex-col">
               {/* 欢迎标题 */}
               <div className="mb-10">
-                <h1 className="text-3xl font-bold text-slate-800">欢迎回来，张先生</h1>
-                <p className="text-slate-500 text-sm mt-1">祝您今天健康愉快</p>
+                {userRole === 'planner' ? (
+                  <>
+                    <h1 className="text-3xl font-bold text-purple-800">智康社区空间治理控制台</h1>
+                    <p className="text-purple-600 text-sm mt-1">管理员已登录 | 规划师模式</p>
+                  </>
+                ) : (
+                  <>
+                    <h1 className="text-3xl font-bold text-slate-800">欢迎回来，社区居民 {userRole === 'resident' ? '张先生' : ''}！</h1>
+                    <p className="text-slate-500 text-sm mt-1">今日社区健康指数良好</p>
+                  </>
+                )}
               </div>
 
               {/* 两列布局 */}
@@ -500,27 +557,34 @@ export default function App() {
                   {/* 快捷服务入口 */}
                   <div className="mt-auto">
                     <h2 className="text-xl font-bold text-slate-700 mb-5">快捷服务</h2>
-                    <div className="grid grid-cols-3 gap-5">
-                      <button onClick={() => setActiveView(AppView.EMERGENCY_RESPONSE)} className="bg-gradient-to-br from-red-500 to-red-600 rounded-2xl p-8 text-white shadow-lg hover:shadow-xl transition-shadow">
-                        <Siren size={40} className="mb-4" />
-                        <p className="font-bold text-xl">应急救援</p>
-                        <p className="text-sm text-white/80 mt-2">紧急情况一键求助</p>
-                      </button>
-                      <button onClick={() => setActiveView(AppView.HEALTH_RISK)} className="bg-gradient-to-br from-primary to-emerald-500 rounded-2xl p-8 text-white shadow-lg hover:shadow-xl transition-shadow">
-                        <Activity size={40} className="mb-4" />
-                        <p className="font-bold text-xl">健康风险热力图</p>
-                        <p className="text-sm text-white/80 mt-2">查看区域健康风险</p>
-                      </button>
-                      <button onClick={() => setActiveView(AppView.ACCESSIBILITY)} className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-8 text-white shadow-lg hover:shadow-xl transition-shadow">
-                        <Accessibility size={40} className="mb-4" />
-                        <p className="font-bold text-xl">无障碍出行</p>
-                        <p className="text-sm text-white/80 mt-2">无障碍设施导航</p>
-                      </button>
-                      <button onClick={() => setActiveView(AppView.SITE_ANALYSIS)} className="bg-gradient-to-br from-purple-500 to-violet-600 rounded-2xl p-8 text-white shadow-lg hover:shadow-xl transition-shadow">
-                        <MapPin size={40} className="mb-4" />
-                        <p className="font-bold text-xl">基地坐标系</p>
-                        <p className="text-sm text-white/80 mt-2">数据点采集与导出</p>
-                      </button>
+                    <div className={`grid gap-5 ${userRole === 'planner' ? 'grid-cols-1' : 'grid-cols-3'}`}>
+                      {userRole === 'planner' ? (
+                        // 规划师模式：显示基地坐标系
+                        <button onClick={() => setActiveView(AppView.SITE_ANALYSIS)} className="bg-gradient-to-br from-purple-500 to-violet-600 rounded-2xl p-8 text-white shadow-lg hover:shadow-xl transition-shadow">
+                          <MapPin size={40} className="mb-4" />
+                          <p className="font-bold text-xl">基地坐标系</p>
+                          <p className="text-sm text-white/80 mt-2">数据点采集与导出</p>
+                        </button>
+                      ) : (
+                        // 居民模式：显示应急救援、健康热力图、无障碍出行
+                        <>
+                          <button onClick={() => setActiveView(AppView.EMERGENCY_RESPONSE)} className="bg-gradient-to-br from-red-500 to-red-600 rounded-2xl p-8 text-white shadow-lg hover:shadow-xl transition-shadow">
+                            <Siren size={40} className="mb-4" />
+                            <p className="font-bold text-xl">应急救援</p>
+                            <p className="text-sm text-white/80 mt-2">紧急情况一键求助</p>
+                          </button>
+                          <button onClick={() => setActiveView(AppView.HEALTH_RISK)} className="bg-gradient-to-br from-primary to-emerald-500 rounded-2xl p-8 text-white shadow-lg hover:shadow-xl transition-shadow">
+                            <Activity size={40} className="mb-4" />
+                            <p className="font-bold text-xl">健康风险热力图</p>
+                            <p className="text-sm text-white/80 mt-2">查看区域健康风险</p>
+                          </button>
+                          <button onClick={() => setActiveView(AppView.ACCESSIBILITY)} className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-8 text-white shadow-lg hover:shadow-xl transition-shadow">
+                            <Accessibility size={40} className="mb-4" />
+                            <p className="font-bold text-xl">无障碍出行</p>
+                            <p className="text-sm text-white/80 mt-2">无障碍设施导航</p>
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
